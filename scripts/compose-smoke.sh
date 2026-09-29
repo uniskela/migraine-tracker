@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 export MIGRAINE_IMAGE=${1:-migraine-tracker:local}
 work=$(mktemp -d /tmp/migraine-compose-XXXXXX)
 name="migraine-compose-check-$$"
-cleanup() { docker compose --env-file "$work/env" -f "$work/compose.yml" -p "$name" down -v >/dev/null 2>&1 || true; rm -rf "$work"; }
+cleanup() { docker compose --env-file "$work/env" -f "$work/compose.yml" -p "$name" --profile backups down -v >/dev/null 2>&1 || true; rm -rf "$work"; }
 trap cleanup EXIT INT TERM
 secret=$(openssl rand -hex 32)
 printf "APP_ORIGIN=https://tracker.example\nSETUP_SECRET=%s\nHOST_PORT=0\nCOOKIE_SECURE=true\n" "$secret" > "$work/env"
