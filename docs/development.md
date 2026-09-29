@@ -41,6 +41,40 @@ The Docker smoke test creates an isolated named volume and synthetic owner/recor
 
 CI mirrors sibling repos: application verify (`.github/workflows/ci.yml`), container build/smoke/Trivy (`.github/workflows/container-security.yml`), Gitleaks (`.github/workflows/gitleaks.yml`), and Release Please → GHCR publish (`.github/workflows/release-please.yml` + `container.yml`).
 
+## Release publishing
+
+The `Publish container images` workflow publishes stable `vX.Y.Z` GitHub Releases
+created by `uniskela`, including manually published releases. Release Please calls
+the same workflow directly because releases created with `GITHUB_TOKEN` do not
+trigger another workflow. Pushing a Git tag alone does not publish images.
+
+Use Conventional Commit titles for squash merges (`fix: ...` or `feat: ...`) so
+Release Please can propose the next release. A successful Release Please run with
+`publish-images` skipped means it did not create a new release; it does not prove
+that container images exist.
+
+Images are built from the release tag for `linux/amd64` and `linux/arm64`. GHCR is
+always used; Docker Hub is used only when both `DOCKERHUB_USERNAME` and
+`DOCKERHUB_TOKEN` are configured. Tags are `X.Y.Z`, `X.Y` for the newest stable
+release in that minor series, and `latest` for the newest stable release overall.
+Backfilling older releases does not move these aliases backwards. The workflow uses `GITHUB_TOKEN` with `packages: write` for
+GHCR; no extra registry secret is needed.
+
+For an existing release whose images are missing, the maintainer can run the
+workflow from Actions, or use:
+
+```sh
+gh workflow run container.yml --ref main -f tag=v1.0.0
+gh run list --workflow container.yml
+# After the publish run succeeds:
+docker buildx imagetools inspect ghcr.io/uniskela/migraine-tracker:1.0.0
+```
+
+Replace `v1.0.0` with the existing release tag. This builds that exact release,
+which may differ from current `main`. New GHCR packages default to private; set
+the package visibility to public if unauthenticated pulls are intended, or log
+in before pulling a private package.
+
 ## Database changes
 
 Edit `src/server/schema.ts`, run `npm run db:generate`, review the SQL under migrations, add realistic forward-migration tests and take a backup before applying to a used installation. Do not use `drizzle-kit push` against production. Migration history lives in the database; startup validates connectivity and applies checked-in migrations. PostgreSQL requires a new driver/schema/migrations and replacement backup tooling; shared calculations and UI are independent of the SQLite dialect.
