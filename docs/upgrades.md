@@ -11,7 +11,7 @@ docker compose up -d --build --wait --wait-timeout 120
 
 `./scripts/update.sh` validates Compose, backs up first, performs a fast-forward source update, builds with fresh base layers, recreates services, runs startup migrations and waits for health. If any command fails, the script exits with failure and does not claim success. It does not automatically reverse migrations.
 
-This repository builds a local image and does not publish one. `docker compose pull` is unnecessary for `migraine-tracker:local`; use `docker compose build --pull` to refresh the base image. If you explicitly configure your own image registry later, pulling that application image becomes appropriate.
+By default Compose builds `migraine-tracker:local` from this checkout. Release Please publishes versioned multi-arch images to `ghcr.io/uniskela/migraine-tracker` (and Docker Hub when `DOCKERHUB_*` secrets are configured). For pull-based upgrades, set `image: ghcr.io/uniskela/migraine-tracker:<version>` and remove `build:`, then `docker compose pull && docker compose up -d`. Local source installs should keep using `docker compose build --pull` to refresh the Node/Debian base layers.
 
 Named volumes survive upgrades/container recreation. Never add `-v` to Compose down. For automatic backups use `COMPOSE_PROFILES=backups ./scripts/update.sh`, or restart that profile afterwards so the backup service uses the new image too.
 

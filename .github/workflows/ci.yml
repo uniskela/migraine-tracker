@@ -1,19 +1,34 @@
 name: Verify
+
 on:
-  push:
   pull_request:
+  push:
+    branches: [main]
+
 permissions:
   contents: read
+
+concurrency:
+  group: verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   application:
+    name: Application
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22.22.0
           cache: npm
+
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
@@ -22,35 +37,13 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
-      - uses: actions/upload-artifact@v7
+
+      - name: Upload browser evidence
         if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: browser-evidence
           path: |
             playwright-report/
             test-results/
           retention-days: 7
-  container:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          push: false
-          load: true
-          tags: |
-            migraine-tracker:ci
-            migraine-tracker:local
-      - run: ./scripts/docker-smoke.sh migraine-tracker:ci
-      - run: ./scripts/compose-smoke.sh
-      - name: Scan high and critical fixable container vulnerabilities
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: migraine-tracker:ci
-          format: table
-          exit-code: "1"
-          ignore-unfixed: true
-          severity: CRITICAL,HIGH

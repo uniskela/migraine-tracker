@@ -1,5 +1,10 @@
 name: migraine-tracker
 x-runtime: &runtime
+  # Local default: build from this checkout. Published releases also land at:
+  #   ghcr.io/uniskela/migraine-tracker:1.0.0 # x-release-please-version
+  #   docker.io/uniskela/migraine-tracker:1.0.0
+  # To pull instead of building, comment out `build:` and set:
+  #   image: ghcr.io/uniskela/migraine-tracker:1.0.0
   build: .
   image: migraine-tracker:local
   volumes:
