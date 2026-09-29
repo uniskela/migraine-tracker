@@ -1,12 +1,7 @@
 name: migraine-tracker
 x-runtime: &runtime
-  # Local default: build from this checkout. Published releases also land at:
-  #   ghcr.io/uniskela/migraine-tracker:1.0.0 # x-release-please-version
-  #   docker.io/uniskela/migraine-tracker:1.0.0 # x-release-please-version
-  # To pull instead of building, comment out `build:` and set:
-  #   image: ghcr.io/uniskela/migraine-tracker:1.0.0 # x-release-please-version
-  build: .
-  image: migraine-tracker:local
+  # Keep app and backup on the same release. Override only for local builds/testing.
+  image: ${MIGRAINE_IMAGE:-ghcr.io/uniskela/migraine-tracker:1.0.1} # x-release-please-version
   volumes:
     - app-data:/app-data
   init: true
@@ -48,6 +43,8 @@ services:
       start_period: 30s
   backup:
     <<: *runtime
+    # Shares app-data with the app; runs once at startup, then daily at 03:00 UTC.
+    # Enable persistently with COMPOSE_PROFILES=backups in .env.
     environment:
       NODE_ENV: production
       DATA_DIR: /app-data

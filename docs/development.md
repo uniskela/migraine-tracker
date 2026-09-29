@@ -39,6 +39,17 @@ docker build -t migraine-tracker:local .
 
 The Docker smoke test creates an isolated named volume and synthetic owner/record, checks health, recreates the container, verifies persistence, then restores a backup and compares actual contents. It deletes only its own uniquely named test resources.
 
+Production Compose pulls a pinned GHCR release. The Compose smoke script selects
+`migraine-tracker:local` explicitly and disables pulls, so CI can test a release
+before its image is published. To test another image, pull/build it first, then
+run `./scripts/compose-smoke.sh <image>`.
+
+For a local source deployment after the build above, use
+`MIGRAINE_IMAGE=migraine-tracker:local docker compose --profile backups up -d --pull never --wait`.
+This selects the same local image for app and backup without changing the release
+pin. Rebuild with `docker build --pull -t migraine-tracker:local .` for subsequent
+source updates; the registry upgrade script is not intended for local images.
+
 CI mirrors sibling repos: application verify (`.github/workflows/ci.yml`), container build/smoke/Trivy (`.github/workflows/container-security.yml`), Gitleaks (`.github/workflows/gitleaks.yml`), and Release Please → GHCR publish (`.github/workflows/release-please.yml` + `container.yml`).
 
 ## Release publishing
