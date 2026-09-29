@@ -28,6 +28,7 @@ const navigation = [
   { id: "medications", label: "Medications", icon: Pill },
   { id: "settings", label: "Settings", icon: SettingsIcon },
 ] as const;
+/** Coordinate session state, journal refreshes, navigation and global display preferences. */
 export default function App() {
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [session, setSession] = useState<{ username: string } | null>(null);

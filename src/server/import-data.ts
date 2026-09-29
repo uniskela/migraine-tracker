@@ -42,6 +42,7 @@ const schema = z.object({
     )
     .default([]),
 });
+/** Validate and atomically import into an empty owner journal while preserving authentication records. */
 export function importData(store: Store, raw: unknown) {
   const data = schema.parse(raw);
   const user = store.db.select().from(s.users).get();

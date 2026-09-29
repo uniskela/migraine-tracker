@@ -95,7 +95,24 @@ test("phone journal critical path, export, accessibility, PWA installability and
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await nav.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByLabel("Theme", { exact: true }).selectOption("dark");
+  // External preference updates must reach the form without losing the unsaved theme.
+  const comfort = page.getByRole("button", {
+    name: "Low stimulation",
+    exact: true,
+  });
+  const switchControl = page.getByRole("switch", {
+    name: /^Low-stimulation mode/,
+  });
+  await comfort.click();
+  await expect(switchControl).toBeChecked();
+  await expect(page.getByLabel("Theme", { exact: true })).toHaveValue("dark");
   await page.getByRole("button", { name: "Save preferences" }).click();
+  await expect(comfort).toHaveAttribute("aria-pressed", "true");
+  await page.reload();
+  await expect(switchControl).toBeChecked();
+  await expect(page.getByLabel("Theme", { exact: true })).toHaveValue("dark");
+  await comfort.click();
+  await expect(switchControl).not.toBeChecked();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await nav.getByRole("button", { name: "Home", exact: true }).click();
   await page

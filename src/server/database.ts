@@ -5,6 +5,7 @@ import { mkdirSync, chmodSync } from "node:fs";
 import { join } from "node:path";
 import * as schema from "./schema.js";
 import { log } from "./config.js";
+/** Open the persistent SQLite store, enable integrity settings and apply versioned migrations. */
 export function openDatabase(dataDir: string) {
   mkdirSync(join(dataDir, "database"), { recursive: true, mode: 0o700 });
   const path = join(dataDir, "database", "tracker.sqlite");

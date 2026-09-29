@@ -16,6 +16,7 @@ import {
   toUTC,
   useAction,
 } from "./ui";
+/** Record a medication event for the selected episode using user-entered dose and time. */
 export function DoseForm({
   data,
   episodeId,
@@ -135,6 +136,7 @@ export function DoseForm({
     </Modal>
   );
 }
+/** Edit medication details and schedules without suggesting a dose or treatment. */
 function MedicationForm({
   medication,
   close,
@@ -269,6 +271,7 @@ function MedicationForm({
     </Modal>
   );
 }
+/** Record a dated side effect and its user-rated severity for a medication. */
 function EffectForm({
   data,
   close,
@@ -356,6 +359,7 @@ function EffectForm({
     </Modal>
   );
 }
+/** Collect retrospective relief ratings and notes for a recorded medication event. */
 export function DoseReview({
   dose,
   data,
@@ -416,6 +420,7 @@ export function DoseReview({
     </div>
   );
 }
+/** Manage preventive and acute medications, doses and reported side effects. */
 export function Medications({
   data,
   saved,

@@ -9,6 +9,7 @@ export type AuthStatus = {
   appName: string;
   defaultTimezone: string;
 };
+/** Present protected first-run setup or the configured local and optional OIDC sign-in options. */
 export function Login({
   status,
   signedIn,

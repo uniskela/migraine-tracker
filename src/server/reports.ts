@@ -12,6 +12,7 @@ import {
   type Period,
 } from "../shared/stats.js";
 import type { AccountData } from "./repository.js";
+/** Encode quoted UTF-8 CSV cells and neutralize spreadsheet formula prefixes. */
 export function csv(rows: unknown[][]) {
   return (
     "\ufeff" +
@@ -28,6 +29,7 @@ export function csv(rows: unknown[][]) {
       .join("\r\n")
   );
 }
+/** Export episodes overlapping the optional local date range, including recorded medication names. */
 export function episodeCsv(data: AccountData, period?: Period) {
   return csv([
     [
@@ -74,6 +76,7 @@ export function episodeCsv(data: AccountData, period?: Period) {
       ]),
   ]);
 }
+/** Wrap account data in a versioned migration envelope with its export timestamp. */
 export function portableExport(data: AccountData) {
   return {
     format: "migraine-tracker",
@@ -82,6 +85,7 @@ export function portableExport(data: AccountData) {
     ...data,
   };
 }
+/** Stream portable JSON and tabular CSV files without persisting an export on the server. */
 export function exportZip(data: AccountData, res: Response) {
   res.attachment("migraine-data.zip");
   const archive = new ZipArchive({ zlib: { level: 9 } });
@@ -116,6 +120,7 @@ export function exportZip(data: AccountData, res: Response) {
   }
   void archive.finalize();
 }
+/** Collect period-scoped observations and a doctor note without diagnostic conclusions. */
 export function reportData(data: AccountData, period: Period, note: string) {
   const { start, end } = bounds(period, data.settings.timezone);
   return {
@@ -145,6 +150,7 @@ export function reportData(data: AccountData, period: Period, note: string) {
       "This application records and summarises information and does not provide medical advice.",
   };
 }
+/** Stream a printable report with local fonts, observed trends and explicit comparison limitations. */
 export function pdfReport(
   data: AccountData,
   period: Period,
@@ -164,6 +170,7 @@ export function pdfReport(
   doc.font("Journal");
   res.type("pdf").attachment(`migraine-report-${period.from}-${period.to}.pdf`);
   doc.pipe(res);
+  /** Start a styled PDF section, adding a page when the heading would be too near the footer. */
   const heading = (text: string) => {
     if (doc.y > 700) doc.addPage();
     doc
@@ -177,6 +184,7 @@ export function pdfReport(
       .fontSize(10)
       .fillColor("#263832");
   };
+  /** Render a report paragraph with a page break when the current page is full. */
   const line = (text: string) => {
     if (doc.y > 745) doc.addPage();
     doc.text(text, { lineGap: 4 });
@@ -187,6 +195,7 @@ export function pdfReport(
     .text(`${period.from} to ${period.to}  |  ${report.timezone}`);
   heading("Summary");
   const s = report.summary;
+  /** Display one decimal place or explicitly mark an unrecorded metric. */
   const number = (n: number | null) =>
     n === null ? "Not recorded" : n.toFixed(1);
   line(

@@ -5,10 +5,10 @@ Restore is an administrative CLI operation, never a public web endpoint.
 ## Existing installation
 
 ```sh
-./scripts/restore.sh /app-data/backups/<archive>.tar.gz
+./scripts/restore.sh "/app-data/backups/migraine-tracker-2026-09-28T23-00-00-000Z-example.tar.gz"
 ```
 
-The path is **inside the application volume**, not a host `/backups` path. The script warns and stops both the app and backup scheduler, then runs a disposable container sharing the volume. It:
+Replace the example filename with your actual archive filename. The path is **inside the application volume**, not a host `/backups` path. The script warns and stops both the app and backup scheduler, then runs a disposable container sharing the volume. It:
 
 1. Lists archive members; only regular `manifest.json` and `tracker.sqlite` are allowed. No symlinks, traversal paths, duplicate members or extra files.
 2. Validates format/version, SHA-256 checksum, expected tables, SQLite integrity and foreign keys in a temporary directory before touching current data.
@@ -32,8 +32,8 @@ Never run the operations CLI restore while an app/backup process is using the da
 1. Install Docker/Compose, clone the source revision compatible with the backup, and restore your encrypted `.env` and reverse-proxy configuration.
 2. Build: `docker compose build app`. Keep the same origin or correctly update APP_ORIGIN/OIDC_REDIRECT_URI and provider settings.
 3. Create the named volume with `docker compose create app` (do not start the app).
-4. Copy your archive into the created container/volume: `docker compose cp ./<archive>.tar.gz app:/app-data/backups/<archive>.tar.gz`.
-5. Docker copy may set root ownership. Fix just the copied archive using a one-off root container: `docker compose run --rm --no-deps --user root app chown 1000:1000 /app-data/backups/<archive>.tar.gz`.
+4. Copy your archive into the created container/volume: `docker compose cp "./migraine-tracker-2026-09-28T23-00-00-000Z-example.tar.gz" app:"/app-data/backups/migraine-tracker-2026-09-28T23-00-00-000Z-example.tar.gz"`.
+5. Docker copy may set root ownership. Fix just the copied archive using a one-off root container: `docker compose run --rm --no-deps --user root app chown 1000:1000 "/app-data/backups/migraine-tracker-2026-09-28T23-00-00-000Z-example.tar.gz"`.
 6. Run the restore wrapper with the internal path. No safety backup is necessary if there is no existing database; restore still validates everything first.
 7. Start with `docker compose up -d --wait`. Startup applies any forward migrations from this revision. Never use an older application against a newer schema.
 8. Sign in using the restored owner credentials. All old browser sessions are intentionally invalidated. Verify a known episode, medication dose, side effect and report; compare against retained export/backup records.

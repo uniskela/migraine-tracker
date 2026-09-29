@@ -32,6 +32,7 @@ import {
   portableExport,
   reportData,
 } from "./reports.js";
+/** Mount account-scoped journal, settings, export and reporting routes with validated inputs. */
 export function apiRoutes(store: Store, config: Config) {
   const router = Router();
   const { db } = store;

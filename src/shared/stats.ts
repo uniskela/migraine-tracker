@@ -1,6 +1,7 @@
 import { DateTime } from "luxon";
 import type { Dose, Episode, Medication } from "./validation.js";
 export type Period = { from: string; to: string };
+/** Convert inclusive local calendar dates into a half-open UTC millisecond interval. */
 export function bounds(period: Period, zone: string) {
   return {
     start: DateTime.fromISO(period.from, { zone }).startOf("day").toMillis(),
@@ -10,6 +11,7 @@ export function bounds(period: Period, zone: string) {
       .toMillis(),
   };
 }
+/** Count inclusive calendar days independently of daylight-saving transitions. */
 export function periodDays(period: Period) {
   return (
     Math.round(
@@ -20,6 +22,7 @@ export function periodDays(period: Period) {
     ) + 1
   );
 }
+/** Return the immediately preceding period with the same number of calendar days. */
 export function previousPeriod(period: Period): Period {
   const end = DateTime.fromISO(period.from).minus({ days: 1 });
   return {
@@ -27,6 +30,7 @@ export function previousPeriod(period: Period): Period {
     to: end.toISODate()!,
   };
 }
+/** List local dates touched by an episode, clipped to the period and excluding an end at midnight. */
 export function episodeDays(
   episode: Episode,
   zone: string,
@@ -58,6 +62,7 @@ export function episodeDays(
     days.push(day.toISODate()!);
   return days;
 }
+/** Test episode overlap with local date bounds; ongoing episodes extend through now. */
 export function inPeriod(
   episode: Episode,
   period: Period,
@@ -73,8 +78,10 @@ export function inPeriod(
       : now >= start)
   );
 }
+/** Return the arithmetic mean, or null when no observations were recorded. */
 const average = (values: number[]) =>
   values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+/** Aggregate recorded episodes and acute doses; clip hours to the period and average only wholly completed durations. */
 export function summary(
   episodes: Episode[],
   doses: Dose[],
@@ -141,9 +148,11 @@ export function summary(
   };
 }
 export type Summary = ReturnType<typeof summary>;
+/** Calculate percentage change, returning null when the prior value is zero. */
 export function change(current: number, previous: number) {
   return previous === 0 ? null : ((current - previous) / previous) * 100;
 }
+/** Count each symptom or associated factor once per episode and sort by frequency. */
 export function frequencies(
   episodes: Episode[],
   field: "symptoms" | "factors",
@@ -160,6 +169,7 @@ export function frequencies(
     }))
     .sort((a, b) => b.count - a.count);
 }
+/** Compare observed periods with day and hour counts normalized to 30 calendar days. */
 export function comparison(
   episodes: Episode[],
   doses: Dose[],
@@ -168,6 +178,7 @@ export function comparison(
   after: Period,
   zone: string,
 ) {
+  /** Normalize count metrics for unequal period lengths without inferring medication effects. */
   const normalize = (s: Summary) => ({
     ...s,
     migraineDaysPer30: (s.migraineDays / s.periodDays) * 30,
@@ -180,6 +191,7 @@ export function comparison(
     after: normalize(summary(episodes, doses, medications, after, zone)),
   };
 }
+/** Format elapsed time in minutes and hours, using now for an ongoing episode. */
 export function duration(start: string, end: string | null, now = Date.now()) {
   const mins = Math.max(
     0,

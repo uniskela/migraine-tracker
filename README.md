@@ -53,8 +53,10 @@ Subsequent startup: `docker compose up -d`. Optional scheduled backups: `docker 
 
 ```sh
 ./scripts/backup.sh
-./scripts/restore.sh /app-data/backups/<archive>.tar.gz
+./scripts/restore.sh "/app-data/backups/migraine-tracker-2026-09-28T23-00-00-000Z-example.tar.gz"
 ```
+
+Replace the example archive filename with the actual filename printed by the backup command.
 
 Restore stops the app and scheduler, validates the archive, makes a safety backup, preserves the old database directory and verifies the restored database. Restart explicitly after reviewing success. See [backup](docs/backups.md) and [restore](docs/restore.md) instructions before relying on it.
 

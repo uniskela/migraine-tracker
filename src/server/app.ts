@@ -7,6 +7,7 @@ import { log } from "./config.js";
 import type { Store } from "./database.js";
 import { authTools } from "./auth.js";
 import { apiRoutes } from "./routes.js";
+/** Assemble security middleware, authenticated APIs and the local PWA shell around the supplied store. */
 export function createApp(store: Store, config: Config) {
   const app = express();
   app.disable("x-powered-by");

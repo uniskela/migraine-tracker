@@ -49,7 +49,7 @@ Edit `src/server/schema.ts`, run `npm run db:generate`, review the SQL under mig
 
 ## Internal API
 
-All `/api/*` routes except health/auth status and auth entry points require a session. Mutations also require JSON, exact Origin and X-CSRF-Token from `/api/auth/session`.
+All `/api/*` routes except health/auth status and auth entry points require a session. All mutations require JSON and an exact Origin. Authenticated mutations additionally require X-CSRF-Token from `/api/auth/session`; initial setup and login do not require a session CSRF token.
 
 GET `/data`, `/trends?from&to`, `/comparison?medicationId&beforeFrom&beforeTo&afterFrom&afterTo`, `/backup-status`, `/export/json|csv|zip`.
 

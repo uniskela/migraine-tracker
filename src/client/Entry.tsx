@@ -22,6 +22,7 @@ import {
   symptoms,
 } from "../shared/options";
 import type { Episode, EpisodeInput } from "../shared/validation";
+/** Edit optional sleep context without treating missing values as recorded zeroes. */
 export function SleepFields({
   value,
   onChange,
@@ -113,6 +114,7 @@ export function SleepFields({
     </div>
   );
 }
+/** Create or update an episode with essential inputs first and optional details behind disclosure. */
 export function Entry({
   episode,
   data,
@@ -390,6 +392,7 @@ export function Entry({
     </Modal>
   );
 }
+/** Record non-migraine daily context for association comparisons with explicit observation coverage. */
 export function DailyEntry({
   data,
   close,

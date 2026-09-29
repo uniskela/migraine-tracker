@@ -2,11 +2,6 @@ name: migraine-tracker
 x-runtime: &runtime
   build: .
   image: migraine-tracker:local
-  env_file: .env
-  environment:
-    NODE_ENV: production
-    DATA_DIR: /app-data
-    PORT: 3000
   volumes:
     - app-data:/app-data
   init: true
@@ -25,6 +20,11 @@ x-runtime: &runtime
 services:
   app:
     <<: *runtime
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATA_DIR: /app-data
+      PORT: 3000
     restart: unless-stopped
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${HOST_PORT:-3000}:3000"
@@ -43,11 +43,21 @@ services:
       start_period: 30s
   backup:
     <<: *runtime
+    environment:
+      NODE_ENV: production
+      DATA_DIR: /app-data
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    network_mode: none
     profiles: ["backups"]
     restart: unless-stopped
     entrypoint: ["sh", "/app/scripts/backup-loop.sh"]
     healthcheck:
-      disable: true
+      test: ["CMD", "node", "dist/server/backup-worker.js", "health"]
+      interval: 60s
+      timeout: 5s
+      retries: 1
+      start_period: 60s
     depends_on:
       app:
         condition: service_healthy

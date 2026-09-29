@@ -29,9 +29,11 @@ export type Data = {
   settings: Settings;
 };
 let csrf = "";
+/** Keep the session CSRF token in memory for subsequent authenticated writes. */
 export function setCsrf(token: string) {
   csrf = token;
 }
+/** Send a same-origin JSON request and surface safe API errors; offline writes are never queued. */
 export async function api<T = unknown>(
   path: string,
   method = "GET",
@@ -56,6 +58,7 @@ export async function api<T = unknown>(
   }
   return res.json() as Promise<T>;
 }
+/** Fetch an authenticated export and release its temporary browser download URL afterward. */
 export async function download(path: string, filename: string, body?: unknown) {
   const res = await fetch(`/api${path}`, {
     method: body ? "POST" : "GET",

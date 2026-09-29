@@ -5,7 +5,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import argon2 from "argon2";
-import { eq, lt } from "drizzle-orm";
+import { and, eq, isNull, lt, or } from "drizzle-orm";
 import {
   Router,
   type Request,
@@ -25,8 +25,10 @@ import {
   settingsSchema,
   setupSchema,
 } from "../shared/validation.js";
+/** Hash high-entropy tokens for lookup without storing bearer credentials. */
 export const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
+/** Compare secret hashes in constant time, including when inputs have different lengths. */
 export const secretEqual = (a: string, b: string) =>
   timingSafeEqual(Buffer.from(hash(a)), Buffer.from(hash(b)));
 const passwordOptions = {
@@ -35,8 +37,10 @@ const passwordOptions = {
   timeCost: 3,
   parallelism: 1,
 } as const;
+/** Hash a password using Argon2id with the application’s bounded memory and work settings. */
 export const hashPassword = (value: string) =>
   argon2.hash(value, passwordOptions);
+/** Read a raw cookie value by exact name, returning an empty string when absent. */
 function cookie(req: Request, name: string) {
   return (
     req.headers.cookie
@@ -46,6 +50,7 @@ function cookie(req: Request, name: string) {
       ?.slice(name.length + 1) || ""
   );
 }
+/** Build local and OIDC authentication routes plus session and CSRF middleware for this store. */
 export function authTools(store: Store, config: Config) {
   const { db } = store;
   const cookieName = config.COOKIE_SECURE ? "__Host-session" : "session";
@@ -55,6 +60,7 @@ export function authTools(store: Store, config: Config) {
     sameSite: "lax" as const,
     path: "/",
   };
+  /** Persist only hashes of fresh session and CSRF tokens, then set the protected browser cookie. */
   function issueSession(res: Response, userId: string) {
     db.delete(s.sessions).where(lt(s.sessions.expiresAt, Date.now())).run();
     const token = randomBytes(32).toString("hex"),
@@ -70,6 +76,7 @@ export function authTools(store: Store, config: Config) {
     res.cookie(cookieName, token, { ...opts, maxAge: 7 * 86400000 });
     return csrf;
   }
+  /** Require a live session and validate the CSRF token on authenticated mutations. */
   function requireAuth(req: Request, res: Response, next: NextFunction) {
     const token = cookie(req, cookieName);
     const session = token
@@ -342,10 +349,20 @@ export function authTools(store: Store, config: Config) {
         (user.oidcSubject && user.oidcSubject !== claims.sub)
       )
         throw new Error("Subject not authorized");
-      db.update(s.users)
+      const linked = db
+        .update(s.users)
         .set({ oidcSubject: claims.sub })
-        .where(eq(s.users.id, user.id))
+        .where(
+          and(
+            eq(s.users.id, user.id),
+            or(
+              isNull(s.users.oidcSubject),
+              eq(s.users.oidcSubject, claims.sub),
+            ),
+          ),
+        )
         .run();
+      if (linked.changes !== 1) throw new Error("Subject not authorized");
       issueSession(res, user.id);
       log("info", "auth.oidc.success");
       res.redirect("/");

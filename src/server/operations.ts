@@ -18,8 +18,10 @@ import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import * as tar from "tar";
 import { log } from "./config.js";
+/** Hash file contents with SHA-256 for backup archive and database integrity checks. */
 const digest = (path: string) =>
   createHash("sha256").update(readFileSync(path)).digest("hex");
+/** Reject databases with integrity errors, broken foreign keys or missing tracker tables. */
 function verifyDatabase(path: string) {
   const db = new Database(path, { readonly: true, fileMustExist: true });
   try {
@@ -44,6 +46,7 @@ function verifyDatabase(path: string) {
     db.close();
   }
 }
+/** Select expired archive names while always preserving the newest successful backup. */
 export function retentionCandidates(
   files: { name: string; modified: number }[],
   days: number,
@@ -56,6 +59,7 @@ export function retentionCandidates(
     .filter((f) => f.modified < now - days * 86400000)
     .map((f) => f.name);
 }
+/** Create and verify an online SQLite snapshot, publish its archive atomically and apply retention. */
 export async function backup(dataDir: string, retention = 30) {
   const dir = join(dataDir, "backups");
   mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -115,6 +119,7 @@ export async function backup(dataDir: string, retention = 30) {
     rmSync(staging, { recursive: true, force: true });
   }
 }
+/** Validate an archive before replacement, preserve current data and revoke restored sessions; requires stopped writers. */
 export async function restore(
   dataDir: string,
   archive: string,

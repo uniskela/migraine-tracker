@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import request from "supertest";
+import { eq } from "drizzle-orm";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -111,6 +112,54 @@ it("validates signed OIDC tokens, PKCE/state/nonce, links only allowed subject a
         )
       ).headers.location,
     ).toBe("/?authError=1");
+    // A second login by the already-linked owner remains valid.
+    const repeat = request.agent(app);
+    const repeatUrl = new URL(
+      (await repeat.get("/api/auth/oidc/start")).headers.location,
+    );
+    nonce = repeatUrl.searchParams.get("nonce")!;
+    expect(
+      (
+        await repeat.get(
+          `/api/auth/oidc/callback?state=${repeatUrl.searchParams.get("state")}&code=test-code`,
+        )
+      ).headers.location,
+    ).toBe("/");
+    expect((await repeat.get("/api/data")).status).toBe(200);
+
+    // Simulate another DB connection changing identity between callback read and write.
+    const racing = request.agent(app);
+    const raceUrl = new URL(
+      (await racing.get("/api/auth/oidc/start")).headers.location,
+    );
+    nonce = raceUrl.searchParams.get("nonce")!;
+    const update = store.db.update.bind(store.db);
+    const spy = vi.spyOn(store.db, "update").mockImplementationOnce((table) => {
+      store.sqlite
+        .prepare("UPDATE users SET oidcSubject = ?")
+        .run("concurrently-linked-owner");
+      return update(table);
+    });
+    try {
+      expect(
+        (
+          await racing.get(
+            `/api/auth/oidc/callback?state=${raceUrl.searchParams.get("state")}&code=test-code`,
+          )
+        ).headers.location,
+      ).toBe("/?authError=1");
+      expect((await racing.get("/api/data")).status).toBe(401);
+      expect(store.db.select().from(s.users).get()?.oidcSubject).toBe(
+        "concurrently-linked-owner",
+      );
+    } finally {
+      spy.mockRestore();
+      store.db
+        .update(s.users)
+        .set({ oidcSubject: "allowed-owner" })
+        .where(eq(s.users.username, "owner"))
+        .run();
+    }
     for (const mode of [
       "wrong-subject",
       "wrong-nonce",

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, ShieldCheck, Database, ExternalLink } from "lucide-react";
 import { DateTime } from "luxon";
 import { api, download, setCsrf, type Data } from "./api";
@@ -12,6 +12,7 @@ import {
   Submit,
   useAction,
 } from "./ui";
+/** Provide optional weight entries and a unit-normalized chart without health interpretations. */
 function Weight({ data, saved }: { data: Data; saved: () => Promise<void> }) {
   const action = useAction();
   const [date, setDate] = useState(
@@ -130,6 +131,7 @@ function Weight({ data, saved }: { data: Data; saved: () => Promise<void> }) {
     </section>
   );
 }
+/** Manage preference drafts, exports and security while merging external preference changes. */
 export function SettingsPage({
   data,
   saved,
@@ -144,6 +146,22 @@ export function SettingsPage({
   auth: { oidcEnabled: boolean; localEnabled: boolean };
 }) {
   const [v, setV] = useState(data.settings);
+  const previousSettings = useRef(data.settings);
+  useEffect(() => {
+    // Apply changed server fields without discarding unrelated unsaved edits.
+    const changes = Object.fromEntries(
+      Object.entries(data.settings).filter(
+        ([key, value]) =>
+          JSON.stringify(value) !==
+          JSON.stringify(
+            previousSettings.current[key as keyof typeof data.settings],
+          ),
+      ),
+    );
+    previousSettings.current = data.settings;
+    if (Object.keys(changes).length)
+      setV((draft) => ({ ...draft, ...changes }));
+  }, [data.settings]);
   const action = useAction();
   const exportAction = useAction();
   const securityAction = useAction();

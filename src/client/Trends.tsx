@@ -27,8 +27,10 @@ type TrendResult = {
     }[];
   };
 };
+/** Format a recorded metric with its suffix, or an em dash when data is absent. */
 const number = (n: number | null, suffix = "") =>
   n === null ? "—" : `${Number(n.toFixed(1))}${suffix}`;
+/** Present summary metrics and mathematically defined changes from the previous period. */
 export function Metrics({
   current,
   previous,
@@ -72,6 +74,7 @@ export function Metrics({
     </div>
   );
 }
+/** Display recorded symptom or factor frequencies without causal interpretations. */
 function Frequencies({
   title,
   values,
@@ -105,6 +108,7 @@ function Frequencies({
     </section>
   );
 }
+/** Plot migraine-day counts in calendar groups with accessible text labels. */
 export function MigraineChart({
   data,
   from,
@@ -182,6 +186,7 @@ export function MigraineChart({
     </section>
   );
 }
+/** Compare configurable periods around a preventive medication’s recorded start date. */
 function Comparison({ data }: { data: Data }) {
   const meds = data.medications.filter(
     (m) => m.category === "preventive" && m.startDate,
@@ -321,6 +326,7 @@ function Comparison({ data }: { data: Data }) {
     </section>
   );
 }
+/** Collect a report range and doctor note, then download the selected report format. */
 function DoctorReport({
   data,
   from,
@@ -410,6 +416,7 @@ function DoctorReport({
     </Modal>
   );
 }
+/** Coordinate date-range summaries, association coverage and preventive medication comparisons. */
 export function Trends({ data }: { data: Data }) {
   const today = DateTime.now().setZone(data.settings.timezone);
   const [range, setRange] = useState("30");

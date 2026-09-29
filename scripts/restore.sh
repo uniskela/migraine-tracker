@@ -6,4 +6,4 @@ case "$1" in /app-data/backups/*.tar.gz) ;; *) echo "Use an archive path within 
 printf "The application and backup service must be stopped. This script stops both before restoring.\n"
 docker compose --profile backups stop app backup
 docker compose run --rm --no-deps app node dist/server/operations.js restore "$1" --confirm-stopped
-printf "Restore verified. Previous data preserved. Start with: docker compose up -d\n"
+printf "Restore verified. Previous data preserved. Start the application with: docker compose up -d\nIf you use scheduled backups, restart both services with: docker compose --profile backups up -d\n"

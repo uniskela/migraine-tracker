@@ -41,8 +41,11 @@ jobs:
           context: .
           push: false
           load: true
-          tags: migraine-tracker:ci
+          tags: |
+            migraine-tracker:ci
+            migraine-tracker:local
       - run: ./scripts/docker-smoke.sh migraine-tracker:ci
+      - run: ./scripts/compose-smoke.sh
       - name: Scan high and critical fixable container vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
         with:

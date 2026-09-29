@@ -2,6 +2,7 @@ import "dotenv/config";
 import { z } from "zod";
 import { resolve } from "node:path";
 import { timezone } from "../shared/validation.js";
+/** Parse only explicit true/false environment values, applying the supplied default when absent. */
 const bool = (fallback: boolean) =>
   z
     .enum(["true", "false"])
@@ -29,6 +30,7 @@ const envSchema = z.object({
   OIDC_REDIRECT_URI: z.string().default(""),
   OIDC_ALLOWED_SUBJECT: z.string().default(""),
 });
+/** Validate deployment configuration and reject unsafe authentication or origin combinations. */
 export function readConfig(env = process.env) {
   const parsed = envSchema.safeParse(env);
   if (!parsed.success)
@@ -82,6 +84,7 @@ export function readConfig(env = process.env) {
   };
 }
 export type Config = ReturnType<typeof readConfig>;
+/** Emit an operational event at the configured level; callers must never pass health data or secrets. */
 export function log(level: "info" | "warn" | "error", event: string) {
   const order = { error: 0, warn: 1, info: 2 };
   if (

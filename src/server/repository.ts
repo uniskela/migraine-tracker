@@ -3,44 +3,69 @@ import { and, eq } from "drizzle-orm";
 import type { Store } from "./database.js";
 import * as s from "./schema.js";
 import type { Episode, EpisodeInput } from "../shared/validation.js";
+/** Load one account’s episodes with their symptoms, factors, impact and sleep records. */
 export function listEpisodes(store: Store, userId: string): Episode[] {
   const rows = store.db
     .select()
     .from(s.episodes)
     .where(eq(s.episodes.userId, userId))
     .all();
-  const ids = new Set(rows.map((e) => e.id));
   const symptoms = store.db
-    .select()
+    .select({
+      episodeId: s.episodeSymptoms.episodeId,
+      name: s.episodeSymptoms.name,
+    })
     .from(s.episodeSymptoms)
-    .all()
-    .filter((v) => ids.has(v.episodeId));
+    .innerJoin(s.episodes, eq(s.episodeSymptoms.episodeId, s.episodes.id))
+    .where(eq(s.episodes.userId, userId))
+    .all();
   const factors = store.db
-    .select()
+    .select({
+      episodeId: s.episodeFactors.episodeId,
+      name: s.episodeFactors.name,
+    })
     .from(s.episodeFactors)
-    .all()
-    .filter((v) => ids.has(v.episodeId));
+    .innerJoin(s.episodes, eq(s.episodeFactors.episodeId, s.episodes.id))
+    .where(eq(s.episodes.userId, userId))
+    .all();
   const impacts = store.db
-    .select()
+    .select({ impact: s.impacts })
     .from(s.impacts)
-    .all()
-    .filter((v) => ids.has(v.episodeId));
+    .innerJoin(s.episodes, eq(s.impacts.episodeId, s.episodes.id))
+    .where(eq(s.episodes.userId, userId))
+    .all();
   const sleep = store.db
     .select()
     .from(s.sleep)
     .where(eq(s.sleep.userId, userId))
     .all();
+  const symptomsByEpisode = new Map<string, string[]>();
+  const factorsByEpisode = new Map<string, string[]>();
+  for (const row of symptoms) {
+    const names = symptomsByEpisode.get(row.episodeId) ?? [];
+    names.push(row.name);
+    symptomsByEpisode.set(row.episodeId, names);
+  }
+  for (const row of factors) {
+    const names = factorsByEpisode.get(row.episodeId) ?? [];
+    names.push(row.name);
+    factorsByEpisode.set(row.episodeId, names);
+  }
+  const impactsByEpisode = new Map(
+    impacts.map(({ impact }) => [impact.episodeId, impact]),
+  );
+  const sleepByEpisode = new Map(
+    sleep.filter((r) => r.episodeId).map((r) => [r.episodeId, r]),
+  );
   return rows
     .map(({ userId: _userId, ...e }) => {
-      const impact = impacts.find((i) => i.episodeId === e.id);
-      const rest = sleep.find((i) => i.episodeId === e.id);
+      const impact = impactsByEpisode.get(e.id);
+      const rest = sleepByEpisode.get(e.id);
       return {
         ...e,
         side: e.side as Episode["side"],
-        symptoms: symptoms
-          .filter((v) => v.episodeId === e.id)
-          .map((v) => v.name),
-        factors: factors.filter((v) => v.episodeId === e.id).map((v) => v.name),
+        symptoms: symptomsByEpisode.get(e.id) ?? [],
+        factors: factorsByEpisode.get(e.id) ?? [],
         impact: impact?.score ?? null,
         disruptions: impact?.disruptions ?? [],
         sleep: rest
@@ -57,6 +82,7 @@ export function listEpisodes(store: Store, userId: string): Episode[] {
     })
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 }
+/** Persist a validated episode and replace its related records in one transaction. */
 export function saveEpisode(
   store: Store,
   userId: string,
@@ -109,6 +135,7 @@ export function saveEpisode(
   });
   return listEpisodes(store, userId).find((e) => e.id === id)!;
 }
+/** Collect account-owned journal data and settings without exporting authentication credentials. */
 export function accountData(store: Store, userId: string) {
   const { db } = store;
   const rests = db
@@ -164,21 +191,12 @@ export function accountData(store: Store, userId: string) {
         };
       }),
     schedules: db
-      .select()
+      .select({ schedule: s.schedules })
       .from(s.schedules)
+      .innerJoin(s.medications, eq(s.medications.id, s.schedules.medicationId))
+      .where(eq(s.medications.userId, userId))
       .all()
-      .filter((v) =>
-        db
-          .select()
-          .from(s.medications)
-          .where(
-            and(
-              eq(s.medications.id, v.medicationId),
-              eq(s.medications.userId, userId),
-            ),
-          )
-          .get(),
-      ),
+      .map(({ schedule }) => schedule),
     settings: db
       .select()
       .from(s.settings)

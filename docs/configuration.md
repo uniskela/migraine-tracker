@@ -31,4 +31,4 @@ All episode/dose/session timestamps are UTC. User timezone determines display, d
 
 UI preferences: timezone, date/time format, units, theme, low stimulation, optional weight, and default full-form selections. One-tap start deliberately does not infer a pain score or symptoms.
 
-The daily backup container runs at 03:00 UTC. Use host cron for a local timezone schedule; see backups documentation.
+The backup container runs immediately on startup and then at 03:00 UTC. It receives only NODE_ENV, DATA_DIR, BACKUP_RETENTION_DAYS and LOG_LEVEL; it does not inherit the application’s `.env` credentials. Use host cron for a local timezone schedule; see backups documentation.

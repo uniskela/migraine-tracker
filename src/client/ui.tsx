@@ -13,6 +13,7 @@ import {
 import { X, ArrowUpRight } from "lucide-react";
 import { DateTime } from "luxon";
 import type { Settings } from "../shared/validation";
+/** Associate a visible label and optional hint with the first input child using a unique ID. */
 export function Field({
   label,
   children,
@@ -41,6 +42,7 @@ export function Field({
     </div>
   );
 }
+/** Render a labelled group of independently toggleable, keyboard-accessible selections. */
 export function Chips({
   label,
   options,
@@ -76,6 +78,7 @@ export function Chips({
     </fieldset>
   );
 }
+/** Open a native modal dialog and restore prior focus when it closes. */
 export function Modal({
   title,
   children,
@@ -120,6 +123,7 @@ export function Modal({
     </dialog>
   );
 }
+/** Render a submit button that indicates and disables interaction during a save. */
 export function Submit({
   busy,
   children = "Save",
@@ -133,6 +137,7 @@ export function Submit({
     </button>
   );
 }
+/** Announce a nonempty operation error to assistive technology. */
 export function ErrorMessage({ error }: { error: string }) {
   return error ? (
     <p className="error" role="alert">
@@ -140,6 +145,7 @@ export function ErrorMessage({ error }: { error: string }) {
     </p>
   ) : null;
 }
+/** Explain an empty collection with an optional next action. */
 export function Empty({
   title,
   text,
@@ -158,6 +164,7 @@ export function Empty({
     </div>
   );
 }
+/** Render the page’s primary heading, context and optional main action. */
 export function PageTitle({
   eyebrow,
   title,
@@ -180,6 +187,7 @@ export function PageTitle({
     </header>
   );
 }
+/** Render a card heading and its optional secondary action. */
 export function CardTitle({
   title,
   action,
@@ -201,9 +209,11 @@ export function CardTitle({
     </div>
   );
 }
+/** Manage pending and error state for asynchronous form actions without optimistic persistence. */
 export function useAction() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  /** Execute an action with visible pending/error state and release pending state on failure. */
   async function run(action: () => Promise<void>) {
     if (busy) return;
     setBusy(true);
@@ -227,17 +237,21 @@ export function useAction() {
     },
   };
 }
+/** Format the current time for a datetime-local field in the configured timezone. */
 export const localNow = (zone: string) =>
   DateTime.now().setZone(zone).toFormat("yyyy-MM-dd\u0027T\u0027HH:mm");
+/** Convert a stored ISO timestamp to a datetime-local field in the configured timezone. */
 export const localInput = (value: string, zone: string) =>
   DateTime.fromISO(value)
     .setZone(zone)
     .toFormat("yyyy-MM-dd\u0027T\u0027HH:mm");
+/** Convert user-entered local time to a UTC ISO timestamp, rejecting invalid dates. */
 export const toUTC = (value: string, zone: string) => {
   const time = DateTime.fromISO(value, { zone });
   if (!time.isValid) throw new Error("Please enter a valid date and time.");
   return time.toUTC().toISO()!;
 };
+/** Display a stored date or timestamp using the account’s timezone and format preferences. */
 export const formatDate = (value: string, settings: Settings, time = false) =>
   DateTime.fromISO(value, { zone: settings.timezone })
     .setZone(settings.timezone)

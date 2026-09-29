@@ -22,6 +22,7 @@ import { DoseReview } from "./Medications";
 import { EpisodeRow } from "./History";
 import { MigraineChart } from "./Trends";
 import { CardTitle, Empty, formatDate, PageTitle } from "./ui";
+/** Show immediate migraine actions, active status and a concise summary of recent records. */
 export function Home({
   data,
   navigate,

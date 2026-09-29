@@ -12,6 +12,7 @@ import type { Data } from "./api";
 import type { Episode } from "../shared/validation";
 import { duration, episodeDays } from "../shared/stats";
 import { Empty, Field, formatDate, PageTitle } from "./ui";
+/** Render a compact episode summary with severity, duration and recorded medication use. */
 export function EpisodeRow({
   episode: e,
   data,
@@ -58,6 +59,7 @@ export function EpisodeRow({
     </button>
   );
 }
+/** Render a local monthly calendar with labelled severity and selectable episode dates. */
 export function Calendar({
   episodes,
   zone,
@@ -150,6 +152,7 @@ export function Calendar({
     </section>
   );
 }
+/** Filter the stored episode timeline and calendar using the account’s timezone. */
 export function History({
   data,
   edit,
