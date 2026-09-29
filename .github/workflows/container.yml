@@ -1,0 +1,147 @@
+name: Publish container images
+
+# Called after Release Please creates a tag from a release PR merged by
+# uniskela. workflow_dispatch is for rare catch-up publishes when a Git tag /
+# GitHub Release already exists but images were never pushed.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Immutable release tag created by Release Please (vX.Y.Z).
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to (re)publish (vX.Y.Z).
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: uniskela/migraine-tracker
+
+jobs:
+  publish:
+    if: >-
+      github.repository == 'uniskela/migraine-tracker' &&
+      github.actor == 'uniskela'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate release tag shape
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Expected a vX.Y.Z tag (with leading v), got: ${TAG:-<empty>}"
+            exit 1
+          fi
+
+      - name: Check out the release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Confirm release tag exists
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "::error::Tag not found in this repository: $TAG"
+            exit 1
+          fi
+
+      - name: Set image version values
+        id: version
+        env:
+          TAG: ${{ inputs.tag }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          MAJOR_MINOR="${VERSION%.*}"
+          REVISION="$(git rev-parse HEAD)"
+          newest="$(
+            git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname |
+              while IFS= read -r candidate; do
+                if [[ "$candidate" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                  printf '%s\n' "$candidate"
+                  break
+                fi
+              done
+          )"
+          if [ "$newest" = "$TAG" ]; then
+            IS_LATEST=true
+          else
+            IS_LATEST=false
+            echo "::notice::Tag $TAG is not the newest ($newest); skipping latest image tag."
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "major_minor=$MAJOR_MINOR" >> "$GITHUB_OUTPUT"
+          echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
+          echo "is_latest=$IS_LATEST" >> "$GITHUB_OUTPUT"
+          images="ghcr.io/${IMAGE_NAME}"
+          if [ -n "${DOCKERHUB_USERNAME:-}" ] && [ -n "${DOCKERHUB_TOKEN:-}" ]; then
+            images="${images},docker.io/${IMAGE_NAME}"
+            echo "dockerhub=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "dockerhub=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::DOCKERHUB_USERNAME/TOKEN unset; publishing to GHCR only."
+          fi
+          echo "images=${images}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ steps.version.outputs.images }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=${{ steps.version.outputs.major_minor }}
+            type=raw,value=latest,enable=${{ steps.version.outputs.is_latest }}
+          labels: |
+            org.opencontainers.image.title=Migraine Tracker
+            org.opencontainers.image.description=Private self-hosted migraine journal PWA
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.version.outputs.revision }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: steps.version.outputs.dockerhub == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push release images
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=publish
+          cache-to: type=gha,mode=max,scope=publish
+          platforms: linux/amd64,linux/arm64

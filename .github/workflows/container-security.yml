@@ -1,0 +1,109 @@
+name: Container security
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - docker-compose.yml
+      - package.json
+      - package-lock.json
+      - src/**
+      - migrations/**
+      - assets/**
+      - scripts/docker-smoke.sh
+      - scripts/compose-smoke.sh
+      - scripts/backup-loop.sh
+      - .github/workflows/container-security.yml
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - docker-compose.yml
+      - package.json
+      - package-lock.json
+      - src/**
+      - migrations/**
+      - assets/**
+      - scripts/docker-smoke.sh
+      - scripts/compose-smoke.sh
+      - scripts/backup-loop.sh
+      - .github/workflows/container-security.yml
+  schedule:
+    - cron: "37 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: container-security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Build, smoke, and scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build final image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          push: false
+          tags: |
+            migraine-tracker:ci
+            migraine-tracker:local
+          cache-from: type=gha,scope=container-security
+          cache-to: type=gha,mode=max,scope=container-security
+
+      - name: Docker smoke
+        run: ./scripts/docker-smoke.sh migraine-tracker:ci
+
+      - name: Compose smoke
+        run: ./scripts/compose-smoke.sh
+
+      - name: Record vulnerability inventory
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: migraine-tracker:ci
+          scanners: vuln
+          format: json
+          output: trivy.json
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          ignore-unfixed: false
+          exit-code: "0"
+          timeout: 10m
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: trivy-${{ github.sha }}
+          path: trivy.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Gate on fixable high and critical findings
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: migraine-tracker:ci
+          scanners: vuln
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          timeout: 10m

@@ -39,6 +39,8 @@ docker build -t migraine-tracker:local .
 
 The Docker smoke test creates an isolated named volume and synthetic owner/record, checks health, recreates the container, verifies persistence, then restores a backup and compares actual contents. It deletes only its own uniquely named test resources.
 
+CI mirrors sibling repos: application verify (`.github/workflows/ci.yml`), container build/smoke/Trivy (`.github/workflows/container-security.yml`), Gitleaks (`.github/workflows/gitleaks.yml`), and Release Please → GHCR publish (`.github/workflows/release-please.yml` + `container.yml`).
+
 ## Database changes
 
 Edit `src/server/schema.ts`, run `npm run db:generate`, review the SQL under migrations, add realistic forward-migration tests and take a backup before applying to a used installation. Do not use `drizzle-kit push` against production. Migration history lives in the database; startup validates connectivity and applies checked-in migrations. PostgreSQL requires a new driver/schema/migrations and replacement backup tooling; shared calculations and UI are independent of the SQLite dialect.

@@ -26,7 +26,7 @@ Screenshots use synthetic demonstration records, never real health data.
 - Local Argon2id login and optional Authentik OIDC with owner-subject allowlisting.
 - Installable mobile PWA, light/dark/system theme, low-stimulation mode, private offline shell.
 - Consistent SQLite backups, optional daily backup container, validated restore with safety backup.
-- One disposable application container; persistent Docker volume; no cloud services.
+- One disposable application container; persistent Docker volume; optional published GHCR/Docker Hub images on release; no cloud SaaS.
 
 This application records and summarises information and does not provide medical advice. Associations and before/after changes do not establish causation.
 
@@ -83,4 +83,4 @@ One owner per installation. No offline writes or cached private records, push re
 
 ## Development
 
-Node 22 LTS, `npm ci`, then see [development](docs/development.md). `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run test:e2e` are the local gates. CI also builds and smoke-tests Docker and scans its image. CI never publishes images or releases.
+Node 22 LTS, `npm ci`, then see [development](docs/development.md). `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run test:e2e` are the local gates. CI also builds and smoke-tests Docker, scans the image (Trivy + Gitleaks), and publishes multi-arch images to GHCR (and Docker Hub when secrets are set) only after a Release Please tag.
