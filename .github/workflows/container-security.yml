@@ -4,9 +4,13 @@ on:
   pull_request:
     paths:
       - Dockerfile
+      - .dockerignore
       - docker-compose.yml
       - package.json
       - package-lock.json
+      - src/**
+      - migrations/**
+      - assets/**
       - scripts/docker-smoke.sh
       - scripts/compose-smoke.sh
       - scripts/backup-loop.sh
@@ -15,9 +19,13 @@ on:
     branches: [main]
     paths:
       - Dockerfile
+      - .dockerignore
       - docker-compose.yml
       - package.json
       - package-lock.json
+      - src/**
+      - migrations/**
+      - assets/**
       - scripts/docker-smoke.sh
       - scripts/compose-smoke.sh
       - scripts/backup-loop.sh

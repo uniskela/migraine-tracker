@@ -45,6 +45,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.tag }}
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Confirm release tag exists
@@ -67,8 +68,18 @@ jobs:
           set -euo pipefail
           VERSION="${TAG#v}"
           MAJOR_MINOR="${VERSION%.*}"
+          REVISION="$(git rev-parse HEAD)"
+          newest="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)"
+          if [ "$newest" = "$TAG" ]; then
+            IS_LATEST=true
+          else
+            IS_LATEST=false
+            echo "::notice::Tag $TAG is not the newest ($newest); skipping latest image tag."
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "major_minor=$MAJOR_MINOR" >> "$GITHUB_OUTPUT"
+          echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
+          echo "is_latest=$IS_LATEST" >> "$GITHUB_OUTPUT"
           images="ghcr.io/${IMAGE_NAME}"
           if [ -n "${DOCKERHUB_USERNAME:-}" ] && [ -n "${DOCKERHUB_TOKEN:-}" ]; then
             images="${images},docker.io/${IMAGE_NAME}"
@@ -93,12 +104,12 @@ jobs:
           tags: |
             type=raw,value=${{ steps.version.outputs.version }}
             type=raw,value=${{ steps.version.outputs.major_minor }}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ steps.version.outputs.is_latest }}
           labels: |
             org.opencontainers.image.title=Migraine Tracker
             org.opencontainers.image.description=Private self-hosted migraine journal PWA
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ steps.version.outputs.revision }}
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
 
       - name: Log in to GHCR
