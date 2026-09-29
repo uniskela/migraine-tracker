@@ -21,14 +21,14 @@ Records use UTC instants plus a configured IANA timezone for calendar boundaries
 
 ## Milestones / local issue tracker
 
-GitHub issues are unavailable until a repository remote and valid GitHub credentials exist. Track implementation here.
+Implementation tracking: https://github.com/uniskela/migraine-tracker/issues/1. The repository was empty at the start.
 
-- [ ] M1 Persistence, migrations, secure bootstrap, local sessions, optional OIDC.
-- [ ] M2 Episodes, daily context, medications/doses/side effects, sleep, weight and settings.
-- [ ] M3 Mobile interface, calendar, accessible themes, low stimulation and PWA.
-- [ ] M4 Statistics, preventive comparison, doctor PDF and portable exports/import.
-- [ ] M5 Docker, consistent backups, validated restore, scheduling and upgrades.
-- [ ] M6 Automated verification, security/mobile audit, evidence and operator docs.
+- [x] M1 Persistence, migrations, secure bootstrap, local sessions, optional OIDC.
+- [x] M2 Episodes, daily context, medications/doses/side effects, sleep, weight and settings.
+- [x] M3 Mobile interface, calendar, accessible themes, low stimulation and PWA.
+- [x] M4 Statistics, preventive comparison, doctor PDF and portable exports/import.
+- [x] M5 Docker, consistent backups, validated restore, scheduling and upgrades.
+- [x] M6 Automated verification, security/mobile audit, evidence and operator docs.
 
 ## Migration to PostgreSQL
 
