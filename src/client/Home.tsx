@@ -74,13 +74,19 @@ export function Home({
       <PageTitle
         eyebrow={now.toFormat("cccc, d MMMM")}
         title={
-          now.hour < 12
-            ? "Good morning."
-            : now.hour < 18
-              ? "Good afternoon."
-              : "Good evening."
+          active
+            ? "You’re tracking an active migraine."
+            : now.hour < 12
+              ? "Good morning."
+              : now.hour < 18
+                ? "Good afternoon."
+                : "Good evening."
         }
-        text="A moment to check in with yourself."
+        text={
+          active
+            ? "Update details when you can. Everything else can wait."
+            : "A moment to check in with yourself."
+        }
         action={
           <span className="private-badge">
             <LockKeyhole size={14} />
@@ -88,46 +94,10 @@ export function Home({
           </span>
         }
       />
-      <section className="quick-log">
-        <div className="quick-log-copy">
-          <span className="quiet-icon">
-            <Sun size={24} />
-          </span>
-          <h2>How are you feeling?</h2>
-          <p>
-            You don’t need to remember everything.
-            <br />
-            Start with what you know.
-          </p>
-          <div className="quick-actions">
-            <button className="button primary large" onClick={log}>
-              <Plus size={21} />
-              Log Migraine
-            </button>
-            <button
-              className="button quick-start"
-              disabled={busy || !!active}
-              onClick={start}
-            >
-              <CirclePlus size={20} />
-              {active ? "Migraine is active" : "Migraine starting now"}
-            </button>
-          </div>
-          <span className="small muted">
-            A quick entry now. More details whenever you’re ready.
-          </span>
-        </div>
-        <div className="hero-art" aria-hidden="true">
-          <div className="orbit orbit-one" />
-          <div className="orbit orbit-two" />
-          <div className="orbit orbit-three" />
-          <Leaf size={82} strokeWidth={1} />
-        </div>
-      </section>
       {active && (
-        <section className="card active-card">
+        <section className="card active-card" aria-live="polite">
           <div className="active-top">
-            <span className="status-dot" />
+            <span className="status-dot" aria-hidden="true" />
             <span className="eyebrow">Migraine active</span>
           </div>
           <h2>
@@ -140,7 +110,10 @@ export function Home({
             {active.severity ? "/10" : ""}
           </p>
           <div className="button-row">
-            <button className="button primary" onClick={() => edit(active)}>
+            <button
+              className="button primary large"
+              onClick={() => edit(active)}
+            >
               Update
             </button>
             <button
@@ -161,6 +134,53 @@ export function Home({
           </div>
         </section>
       )}
+      <section className={`quick-log${active ? " quick-log--quiet" : ""}`}>
+        <div className="quick-log-copy">
+          <span className="quiet-icon" aria-hidden="true">
+            <Sun size={24} />
+          </span>
+          <h2>
+            {active ? "Need to add another entry?" : "How are you feeling?"}
+          </h2>
+          <p>
+            {active
+              ? "Log a past migraine if you still need to catch up."
+              : "You don’t need to remember everything. Start with what you know."}
+          </p>
+          <div className="quick-actions">
+            <button
+              className={`button${active ? " secondary" : " primary"} large`}
+              onClick={log}
+            >
+              <Plus size={21} />
+              Log Migraine
+            </button>
+            {!active && (
+              <button
+                className="button quick-start"
+                disabled={busy}
+                onClick={start}
+              >
+                <CirclePlus size={20} />
+                Migraine starting now
+              </button>
+            )}
+          </div>
+          {!active && (
+            <span className="small muted">
+              A quick entry now. More details whenever you’re ready.
+            </span>
+          )}
+        </div>
+        {!active && (
+          <div className="hero-art" aria-hidden="true">
+            <div className="orbit orbit-one" />
+            <div className="orbit orbit-two" />
+            <div className="orbit orbit-three" />
+            <Leaf size={82} strokeWidth={1} />
+          </div>
+        )}
+      </section>
       <div className="section-label">
         <h2>Your last 30 days</h2>
         <button className="text-button" onClick={() => navigate("trends")}>
@@ -225,7 +245,13 @@ export function Home({
           ) : (
             <Empty
               title="Your story starts here"
-              text="Your recent migraines will appear here once recorded."
+              text="When you log a migraine, it will show up here for quick review."
+              action={
+                <button className="button secondary" onClick={log}>
+                  <Plus size={17} />
+                  Log your first migraine
+                </button>
+              }
             />
           )}
           <button className="subtle-row" onClick={checkIn}>
