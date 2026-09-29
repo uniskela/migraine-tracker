@@ -28,7 +28,7 @@ Alternatively, use your host cron at 03:00 in the host timezone:
 
 Choose one scheduler. If you require Australia/Sydney local time including DST, use a host configured to that timezone or a cron implementation supporting `CRON_TZ`. The container schedule intentionally states UTC. On restart, the backup container makes an immediate backup before scheduling the next future 03:00. It receives only data-directory, retention and logging configuration; application and OIDC secrets are not passed to it. Its network is disabled. Writable access to the journal volume remains necessary for SQLite WAL coordination and backup completion records.
 
-`BACKUP_RETENTION_DAYS=30` applies to matching successful archive files. The newest archive is never deleted, even if old; 0 disables retention. Safety backups created during restore do not run retention. Old preserved database directories are retained for operator review and are never automatically removed.
+`BACKUP_RETENTION_DAYS=30` applies to matching successful archive files. The newest archive is never deleted, even if old; 0 disables retention. If recording completion fails, the newly published archive is removed and the backup reports failure. Once completion is recorded, retention cleanup is best-effort: a cleanup failure logs `backup.retention.failed` without invalidating the new archive or its completion record. Safety backups created during restore do not run retention. Old preserved database directories are retained for operator review and are never automatically removed.
 
 ## Off-host copy
 

@@ -59,7 +59,7 @@ export function retentionCandidates(
     .filter((f) => f.modified < now - days * 86400000)
     .map((f) => f.name);
 }
-/** Create and verify an online SQLite snapshot, publish its archive atomically and apply retention. */
+/** Create and verify an online SQLite snapshot, publish and record its archive, then attempt retention without invalidating success. */
 export async function backup(dataDir: string, retention = 30) {
   const dir = join(dataDir, "backups");
   mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -94,21 +94,33 @@ export async function backup(dataDir: string, retention = 30) {
     );
     chmodSync(`${target}.partial`, 0o600);
     renameSync(`${target}.partial`, target);
-    const recordsDb = new Database(join(dataDir, "database", "tracker.sqlite"));
+    let recordsDb: Database.Database | undefined;
     try {
+      recordsDb = new Database(join(dataDir, "database", "tracker.sqlite"), {
+        fileMustExist: true,
+      });
       recordsDb
         .prepare(
           "INSERT INTO backup_records (id, completedAt, filename, sha256) VALUES (?, ?, ?, ?)",
         )
         .run(randomUUID(), new Date().toISOString(), filename, digest(target));
+    } catch (e) {
+      // A published archive is not successful until its completion record exists.
+      rmSync(target, { force: true });
+      throw e;
     } finally {
-      recordsDb.close();
+      recordsDb?.close();
     }
-    const files = readdirSync(dir)
-      .filter((n) => /^migraine-tracker-.*\.tar\.gz$/.test(n))
-      .map((name) => ({ name, modified: statSync(join(dir, name)).mtimeMs }));
-    for (const name of retentionCandidates(files, retention))
-      rmSync(join(dir, name));
+    // Retention is best-effort housekeeping after successful publication.
+    try {
+      const files = readdirSync(dir)
+        .filter((n) => /^migraine-tracker-.*\.tar\.gz$/.test(n))
+        .map((name) => ({ name, modified: statSync(join(dir, name)).mtimeMs }));
+      for (const name of retentionCandidates(files, retention))
+        rmSync(join(dir, name));
+    } catch {
+      log("warn", "backup.retention.failed");
+    }
     log("info", "backup.success");
     return target;
   } catch (e) {

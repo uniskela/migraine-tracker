@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import {
   mkdtempSync,
   rmSync,
@@ -6,13 +6,16 @@ import {
   writeFileSync,
   mkdirSync,
   symlinkSync,
+  readdirSync,
+  utimesSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
 import * as tar from "tar";
 import { openDatabase } from "../src/server/database";
+import * as config from "../src/server/config";
 import { backup, restore } from "../src/server/operations";
 import * as s from "../src/server/schema";
 import { saveEpisode } from "../src/server/repository";
@@ -109,5 +112,70 @@ it("backs up a live WAL database, restores real records, preserves current data 
     intact.close();
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+it("removes a published archive if recording completion fails, preserving prior backups", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "tracker-backup-record-"));
+  const store = openDatabase(dir);
+  try {
+    const previous = await backup(dir);
+    store.sqlite
+      .exec(`CREATE TRIGGER reject_backup_record BEFORE INSERT ON backup_records
+      BEGIN SELECT RAISE(ABORT, 'Completion record rejected'); END;`);
+    await expect(backup(dir)).rejects.toThrow("Completion record rejected");
+    expect(readdirSync(join(dir, "backups"))).toEqual([basename(previous)]);
+    expect(store.db.select().from(s.backups).all()).toHaveLength(1);
+  } finally {
+    store.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+it("keeps the new archive and record restorable when retention deletion fails", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "tracker-backup-retention-"));
+  const recovery = mkdtempSync(join(tmpdir(), "tracker-backup-recovery-"));
+  const store = openDatabase(dir);
+  const events = vi.spyOn(config, "log").mockImplementation(() => {});
+  try {
+    store.db
+      .insert(s.users)
+      .values({
+        id: "retention-owner",
+        username: "retention-owner",
+        createdAt: new Date().toISOString(),
+      })
+      .run();
+    // A nonempty directory in the archive namespace causes a real rmSync failure,
+    // even when the test runner has root permissions.
+    const expired = join(dir, "backups", "migraine-tracker-expired.tar.gz");
+    mkdirSync(expired, { recursive: true });
+    writeFileSync(join(expired, "keep"), "retention failure fixture");
+    const old = new Date(Date.now() - 60 * 86400000);
+    utimesSync(expired, old, old);
+    const archive = await backup(dir, 30);
+    expect(events).toHaveBeenCalledWith("warn", "backup.retention.failed");
+    expect(events).toHaveBeenCalledWith("info", "backup.success");
+    expect(events).not.toHaveBeenCalledWith("error", "backup.failed");
+    expect(existsSync(archive)).toBe(true);
+    expect(existsSync(expired)).toBe(true);
+    expect(store.db.select().from(s.backups).all()).toMatchObject([
+      { filename: basename(archive) },
+    ]);
+    await restore(recovery, archive, true);
+    const restored = new Database(join(recovery, "database", "tracker.sqlite"));
+    try {
+      expect(restored.prepare("SELECT username FROM users").get()).toEqual({
+        username: "retention-owner",
+      });
+      expect(restored.pragma("integrity_check", { simple: true })).toBe("ok");
+    } finally {
+      restored.close();
+    }
+  } finally {
+    events.mockRestore();
+    store.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(recovery, { recursive: true, force: true });
   }
 });

@@ -7,7 +7,7 @@ Verification date: 29 September 2026. All fixtures are synthetic. No actual heal
 - TypeScript type-check and ESLint passed.
 - Production frontend and server build passed.
 - Drizzle schema generation reports no uncommitted schema changes relative to checked-in migrations.
-- 20 Vitest tests passed: local setup/login/lockout, CSRF and ownership, active episode lifecycle, medication/side-effect/sleep/context/weight records, report/export formats, JSON migration, timezones/DST and statistics, and actual backup restoration.
+- 22 Vitest tests passed: local setup/login/lockout, CSRF and ownership, active episode lifecycle, medication/side-effect/sleep/context/weight records, report/export formats, JSON migration, timezones/DST and statistics, and actual backup restoration.
 - OIDC tests use real RSA-signed mock-provider ID tokens and exercise PKCE, state/nonce, audience/subject allowlisting, browser binding and replay rejection.
 - SQLite live-WAL backup actually restored original episode, symptom, sleep and severity records after subsequent changes; safety data preserved, integrity passed, restored sessions revoked, malformed and symlink archives rejected.
 - Docker image built from a clean base. Disposable-container test passed fresh setup, health, record persistence after container recreation, and actual archive restore with content comparison.
@@ -19,6 +19,8 @@ Verification date: 29 September 2026. All fixtures are synthetic. No actual heal
 - Both Playwright browser tests passed: the complete 390px phone workflow (sign-in, start, severity, symptoms, medication, finish, history/calendar, trend update, PDF, dark/low-stimulation mode), axe WCAG AA checks with zero violations on the exercised home screen, no page errors or horizontal overflow, service-worker registration/control, no cached API records, offline navigation/reconnection, and a separate non-private profile with zero manifest/installability errors.
 
 ## PR review regressions
+
+- Backup publication tests force metadata insertion failure and retention deletion failure. They verify cleanup of untracked archives, preservation of successful archives/records, warning logs and an actual restore after retention failure.
 
 - OIDC tests now verify repeat login and reject an identity change between the callback read and conditional update without issuing a session.
 - The phone test changes a draft theme, toggles low-stimulation mode from the top bar, saves and reloads. Both preferences persist without losing the unrelated draft.
