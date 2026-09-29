@@ -69,7 +69,15 @@ jobs:
           VERSION="${TAG#v}"
           MAJOR_MINOR="${VERSION%.*}"
           REVISION="$(git rev-parse HEAD)"
-          newest="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)"
+          newest="$(
+            git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname |
+              while IFS= read -r candidate; do
+                if [[ "$candidate" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                  printf '%s\n' "$candidate"
+                  break
+                fi
+              done
+          )"
           if [ "$newest" = "$TAG" ]; then
             IS_LATEST=true
           else
