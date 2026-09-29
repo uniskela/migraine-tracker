@@ -41,13 +41,14 @@ cp .env.example .env
 openssl rand -hex 32
 # Put the generated value in SETUP_SECRET. Set APP_ORIGIN to your HTTPS origin.
 chmod 600 .env
-docker compose up -d --build
+docker compose pull
+docker compose up -d --wait
 docker compose ps
 ```
 
 Point your reverse proxy at `127.0.0.1:3000` (host proxy), or attach a container proxy to the Compose network and use `app:3000`. Configure trusted proxy IPs/CIDRs as described in [installation](docs/installation.md). The published port is bound to loopback by default. Visit your HTTPS origin and enter the setup secret to create the owner account. Setup then closes permanently.
 
-Subsequent startup: `docker compose up -d`. Optional scheduled backups: `docker compose --profile backups up -d`.
+Compose pulls the pinned GHCR release for both the app and backup worker. Subsequent startup: `docker compose up -d`. For scheduled backups, set `COMPOSE_PROFILES=backups` in `.env`, then run `docker compose up -d --wait`. This keeps the worker enabled during future upgrades too. Both services share the persistent `app-data` volume.
 
 **Make an off-host backup.** A Docker volume survives container recreation, but cannot protect against host/disk loss. Never run `docker compose down -v` unless deliberately deleting all journal data.
 

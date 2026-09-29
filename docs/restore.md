@@ -30,7 +30,7 @@ Never run the operations CLI restore while an app/backup process is using the da
 ## Total host loss / new host
 
 1. Install Docker/Compose, clone the source revision compatible with the backup, and restore your encrypted `.env` and reverse-proxy configuration.
-2. Build: `docker compose build app`. Keep the same origin or correctly update APP_ORIGIN/OIDC_REDIRECT_URI and provider settings.
+2. Pull the selected recovery release: `docker compose pull`. Keep the same origin or correctly update APP_ORIGIN/OIDC_REDIRECT_URI and provider settings.
 3. Create the named volume with `docker compose create app` (do not start the app).
 4. Copy your archive into the created container/volume: `docker compose cp "./migraine-tracker-2026-09-28T23-00-00-000Z-example.tar.gz" app:"/app-data/backups/migraine-tracker-2026-09-28T23-00-00-000Z-example.tar.gz"`.
 5. Docker copy may set root ownership. Fix just the copied archive using a one-off root container: `docker compose run --rm --no-deps --user root app chown 1000:1000 "/app-data/backups/migraine-tracker-2026-09-28T23-00-00-000Z-example.tar.gz"`.

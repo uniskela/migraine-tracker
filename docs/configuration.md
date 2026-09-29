@@ -17,6 +17,8 @@ Server-only environment variables are loaded from `.env` locally and by Compose.
 | HOST_PORT | 3000 | Host published port |
 | BIND_ADDRESS | 127.0.0.1 | Host binding; prefer loopback or no publication |
 | BACKUP_RETENTION_DAYS | 30 | Successful timestamped backups older than this may be removed; newest is kept; 0 disables pruning |
+| COMPOSE_PROFILES | empty | Set to `backups` to enable the scheduled backup service during startup and upgrades |
+| MIGRAINE_IMAGE | pinned GHCR release in Compose | Optional image override applied to both app and backup; normally leave unset |
 | OIDC_ENABLED | false | Enable OIDC authentication |
 | OIDC_ISSUER_URL | empty | Exact HTTPS discovery issuer |
 | OIDC_CLIENT_ID | empty | Confidential OIDC client ID |

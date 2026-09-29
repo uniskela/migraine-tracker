@@ -8,11 +8,11 @@ Docker Engine with Compose v2, a Linux host with persistent local storage, and a
 2. Generate a bootstrap secret with `openssl rand -hex 32`. Replace the example SETUP_SECRET and set APP_ORIGIN to the exact browser origin, e.g. `https://migraine.example.com`, without a trailing slash.
 3. Set DEFAULT_TIMEZONE if needed. Leave COOKIE_SECURE=true for production.
 4. Protect `.env` with `chmod 600 .env`.
-5. Run `docker compose up -d --build`. Startup creates and migrates the database. Migration failures stop startup without recreating the database.
+5. Run `docker compose pull`, then `docker compose up -d --wait` to use the pinned GHCR release. Startup creates and migrates the database. Migration failures stop startup without recreating the database.
 6. Confirm `docker compose ps` reports healthy and `curl http://127.0.0.1:3000/api/health` returns `{"status":"ok","database":"ok"}`.
 7. Configure HTTPS proxying, then open APP_ORIGIN. Create the owner with your setup secret, timezone and units. Add optional medication records afterwards. There are no default credentials.
 8. Install from Safari’s Share → Add to Home Screen, or the Android browser’s Install app menu.
-9. Set up backups and perform a restore rehearsal to a separate installation.
+9. Set `COMPOSE_PROFILES=backups` in `.env` and run `docker compose up -d --wait` for scheduled backups. Perform a restore rehearsal to a separate installation.
 
 ## Persistence and permissions
 

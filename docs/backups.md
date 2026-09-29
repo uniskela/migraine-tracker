@@ -14,13 +14,21 @@ The settings page displays the last successful backup timestamp from BackupRecor
 
 ## Daily backups
 
-Separate optional container, immediately on startup and then daily at **03:00 UTC**:
+Separate optional container, using the same pinned GHCR image and `app-data`
+volume as the app, immediately on startup and then daily at **03:00 UTC**.
+Set `COMPOSE_PROFILES=backups` in `.env` so startup and upgrade commands keep the
+worker enabled:
 
 ```sh
-docker compose --profile backups up -d
+docker compose pull
+docker compose up -d --wait
 ```
 
-Alternatively, use your host cron at 03:00 in the host timezone:
+For a one-command opt-in without editing `.env`, use
+`docker compose --profile backups up -d --wait` and include that profile on later
+upgrades too. The worker waits for the app to be healthy before its first backup.
+
+Alternatively, leave the profile disabled and use your host cron at 03:00 in the host timezone:
 
 ```cron
 0 3 * * * cd /opt/migraine-tracker && ./scripts/backup.sh >> /var/log/migraine-backup.log 2>&1
