@@ -10,7 +10,7 @@ import {
   type ReactNode,
   type FormEvent,
 } from "react";
-import { X, ArrowUpRight } from "lucide-react";
+import { X, ArrowUpRight, Leaf } from "lucide-react";
 import { DateTime } from "luxon";
 import type { Settings } from "../shared/validation";
 /** Associate a visible label and optional hint with the first input child using a unique ID. */
@@ -132,8 +132,13 @@ export function Submit({
   children?: ReactNode;
 }) {
   return (
-    <button type="submit" className="button primary" disabled={busy}>
-      {busy ? "Saving…" : children}
+    <button
+      type="submit"
+      className="button primary"
+      disabled={busy}
+      aria-busy={busy}
+    >
+      {busy ? "Working…" : children}
     </button>
   );
 }
@@ -157,10 +162,12 @@ export function Empty({
 }) {
   return (
     <div className="empty">
-      <div className="empty-mark">○</div>
+      <div className="empty-mark" aria-hidden="true">
+        <Leaf size={28} strokeWidth={1.4} />
+      </div>
       <h3>{title}</h3>
       <p>{text}</p>
-      {action}
+      {action && <div className="empty-action">{action}</div>}
     </div>
   );
 }
