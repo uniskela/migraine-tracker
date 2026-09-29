@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.env
+.env.*
+!.env.example
+app-data
+test-results
+playwright-report
+docs/evidence
+*.sqlite*
+*.db*
+*.tar.gz
+*.zip
