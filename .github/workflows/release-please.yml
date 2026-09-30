@@ -46,3 +46,12 @@ jobs:
     with:
       tag: ${{ needs.release-please.outputs.tag_name }}
     secrets: inherit
+
+  notify-docs:
+    needs: release-please
+    if: >-
+      github.actor == 'uniskela' &&
+      needs.release-please.outputs.release_created == 'true'
+    permissions: {}
+    uses: ./.github/workflows/notify-uniskela-docs.yml
+    secrets: inherit
