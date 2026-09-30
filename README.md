@@ -86,3 +86,7 @@ One owner per installation. No offline writes or cached private records, push re
 ## Development
 
 Node 22 LTS, `npm ci`, then see [development](docs/development.md). `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run test:e2e` are the local gates. CI also builds and smoke-tests Docker and scans for container vulnerabilities and secrets (Trivy + Gitleaks). Stable GitHub Releases publish multi-arch images to GHCR (and Docker Hub when secrets are set), whether created manually or by Release Please. See [release publishing](docs/development.md#release-publishing) for tags and recovery steps.
+
+## License
+
+Migraine Tracker is licensed under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`). Bundled font licenses remain under `assets/fonts/LICENSE.txt`.

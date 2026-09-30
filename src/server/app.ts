@@ -49,14 +49,6 @@ export function createApp(store: Store, config: Config) {
     res.setHeader("Cache-Control", "no-store");
     next();
   });
-  app.get("/api/health", (_req, res) => {
-    try {
-      store.sqlite.prepare("SELECT 1").get();
-      res.json({ status: "ok", database: "ok" });
-    } catch {
-      res.status(503).json({ status: "unavailable", database: "unavailable" });
-    }
-  });
   app.use(
     "/api",
     rateLimit({
@@ -67,6 +59,14 @@ export function createApp(store: Store, config: Config) {
       message: { error: "Please wait a moment and try again." },
     }),
   );
+  app.get("/api/health", (_req, res) => {
+    try {
+      store.sqlite.prepare("SELECT 1").get();
+      res.json({ status: "ok", database: "ok" });
+    } catch {
+      res.status(503).json({ status: "unavailable", database: "unavailable" });
+    }
+  });
   app.use("/api", (req, res, next) => {
     if (
       !["GET", "HEAD", "OPTIONS"].includes(req.method) &&

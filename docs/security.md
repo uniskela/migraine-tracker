@@ -20,6 +20,7 @@ Health notes, symptoms, medication/weight/sleep records, identifiers, credential
 | Backup loss/corruption | SQLite online backup, SHA-256 manifest, integrity/foreign-key checks, safety archive, preserved pre-restore directory, tested restore | A local backup cannot survive disk loss; encrypt and copy off-host |
 | Malicious archive/CSV | Strict member allowlist, regular files only, no traversal/symlinks; CSV formula neutralization | Only a trusted operator should supply restoration archives |
 | Log leakage | Fixed operational event names only; no URLs, request bodies, identifiers, exception stack dumps, tokens or records | Configure reverse-proxy logs separately; OIDC callback query strings can contain codes |
+| Request floods / DoS | Per-IP limits on `/api` (including health), public shell handlers (manifest + SPA fallback), and auth attempts; process-local counters | Shared NAT clients share a budget; put a reverse-proxy limit in front for internet exposure |
 | Container compromise | Non-root UID 1000, read-only root FS, dropped capabilities, no-new-privileges, bounded logs | Host patching and access control remain essential |
 
 The backup worker receives only non-secret configuration and has no network access. It retains writable journal-volume access for SQLite online backup/WAL coordination, completion records and archive retention; host/container compromise can still expose or alter this single installation’s journal. Its own healthcheck reports failed or missed backups independently of the web UI, and should be connected to host monitoring.

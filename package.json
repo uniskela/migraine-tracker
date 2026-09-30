@@ -2,6 +2,7 @@
   "name": "personal-health-tracker",
   "version": "1.0.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "engines": {
     "node": ">=22.22.0 <23"

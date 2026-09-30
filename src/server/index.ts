@@ -1,4 +1,5 @@
 import express from "express";
+import { rateLimit } from "express-rate-limit";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { readConfig, log } from "./config.js";
@@ -9,7 +10,14 @@ try {
   const config = readConfig();
   const store = openDatabase(config.DATA_DIR);
   const app = createApp(store, config);
-  app.get("/manifest.webmanifest", (_req, res) => {
+  const publicShellLimiter = rateLimit({
+    windowMs: 60000,
+    limit: 300,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { error: "Please wait a moment and try again." },
+  });
+  app.get("/manifest.webmanifest", publicShellLimiter, (_req, res) => {
     const manifest = JSON.parse(
       readFileSync(
         resolve(
@@ -50,7 +58,7 @@ try {
         },
       }),
     );
-    app.get("/{*path}", (_req, res) => {
+    app.get("/{*path}", publicShellLimiter, (_req, res) => {
       res.setHeader("Cache-Control", "no-cache");
       res.sendFile(resolve("dist/client/index.html"));
     });
