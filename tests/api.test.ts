@@ -31,15 +31,12 @@ beforeEach(async () => {
     }),
   );
   agent = request.agent(app);
-  const res = await agent
-    .post("/api/auth/setup")
-    .set("Origin", origin)
-    .send({
-      username: "owner",
-      password: "private-test-password",
-      setupSecret: secret,
-      timezone: "Australia/Sydney",
-    });
+  const res = await agent.post("/api/auth/setup").set("Origin", origin).send({
+    username: "owner",
+    password: "private-test-password",
+    setupSecret: secret,
+    timezone: "Australia/Sydney",
+  });
   expect(res.status).toBe(201);
   csrf = res.body.csrf;
 });
@@ -267,6 +264,36 @@ describe("journal workflows", () => {
           })
       ).status,
     ).toBe(200);
+    const episode = await post("/episodes", {
+      startedAt: "2026-09-21T00:00:00Z",
+      endedAt: "2026-09-21T02:00:00Z",
+      sleep: { bedtime: "23:15", wakeTime: "06:45", hours: 2 },
+    });
+    expect(episode.status).toBe(201);
+    expect(episode.body.sleep).toMatchObject({
+      bedtime: "23:15",
+      wakeTime: "06:45",
+      hours: 7.5,
+    });
+    const legacy = await post("/episodes", {
+      startedAt: "2026-09-22T00:00:00Z",
+      endedAt: "2026-09-22T02:00:00Z",
+      sleep: {
+        bedtime: "2026-09-21T12:00:00Z",
+        wakeTime: "2026-09-21T20:30:00Z",
+      },
+    });
+    expect(legacy.body.sleep).toMatchObject({
+      bedtime: "22:00",
+      wakeTime: "06:30",
+      hours: 8.5,
+    });
+    const emptySleep = await post("/episodes", {
+      startedAt: "2026-09-23T00:00:00Z",
+      endedAt: "2026-09-23T02:00:00Z",
+      sleep: { bedtime: null, wakeTime: null, hours: null },
+    });
+    expect(emptySleep.body.sleep).toBeNull();
     const data = (await agent.get("/api/data")).body;
     expect(data.daily[0].sleep.hours).toBe(7);
     expect(data.effects).toHaveLength(1);

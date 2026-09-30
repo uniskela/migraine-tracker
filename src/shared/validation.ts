@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DateTime, IANAZone } from "luxon";
+import { clockPattern } from "./sleep.js";
 const note = z.string().trim().max(5000).default("");
 const selections = z
   .array(z.string().trim().min(1).max(80))
@@ -16,19 +17,19 @@ export const date = z
 export const timezone = z
   .string()
   .refine((v) => IANAZone.isValidZone(v), "Use a valid IANA timezone");
-export const sleepSchema = z
-  .object({
-    bedtime: instant.nullable().default(null),
-    wakeTime: instant.nullable().default(null),
-    hours: z.number().min(0).max(24).nullable().default(null),
-    quality: z.number().int().min(1).max(5).nullable().default(null),
-    unusual: z.boolean().default(false),
-    wokeDuringNight: z.boolean().default(false),
-  })
-  .refine(
-    (v) => !v.bedtime || !v.wakeTime || v.wakeTime >= v.bedtime,
-    "Wake time must follow bedtime",
-  );
+/** Sleep times are wall-clock HH:mm; full timestamps from older exports are accepted and converted on save. */
+const sleepTime = z
+  .union([z.string().regex(clockPattern, "Use a time such as 23:30"), instant])
+  .nullable()
+  .default(null);
+export const sleepSchema = z.object({
+  bedtime: sleepTime,
+  wakeTime: sleepTime,
+  hours: z.number().min(0).max(24).nullable().default(null),
+  quality: z.number().int().min(1).max(5).nullable().default(null),
+  unusual: z.boolean().default(false),
+  wokeDuringNight: z.boolean().default(false),
+});
 export const episodeSchema = z
   .object({
     startedAt: instant,

@@ -6,7 +6,13 @@ import { DateTime } from "luxon";
 import * as s from "./schema.js";
 import type { Config } from "./config.js";
 import type { Store } from "./database.js";
-import { accountData, listEpisodes, saveEpisode } from "./repository.js";
+import {
+  accountData,
+  listEpisodes,
+  saveEpisode,
+  userZone,
+} from "./repository.js";
+import { normalizeSleep } from "../shared/sleep.js";
 import {
   dailySchema,
   doseSchema,
@@ -45,12 +51,10 @@ export function apiRoutes(store: Store, config: Config) {
       !input.endedAt &&
       listEpisodes(store, res.locals.userId).some((e) => !e.endedAt)
     ) {
-      res
-        .status(409)
-        .json({
-          error:
-            "A migraine is already active. Update or end that episode first.",
-        });
+      res.status(409).json({
+        error:
+          "A migraine is already active. Update or end that episode first.",
+      });
       return;
     }
     res.status(201).json(saveEpisode(store, res.locals.userId, input));
@@ -239,12 +243,11 @@ export function apiRoutes(store: Store, config: Config) {
           and(
             eq(s.medications.id, input.medicationId),
             eq(s.medications.userId, res.locals.userId),
-            eq(s.medications.category, "preventive"),
           ),
         )
         .get()
     ) {
-      res.status(404).json({ error: "Preventive medication not found." });
+      res.status(404).json({ error: "Medication not found." });
       return;
     }
     const id = randomUUID();
@@ -287,8 +290,13 @@ export function apiRoutes(store: Store, config: Config) {
   });
   router.put("/daily", (req, res) => {
     const input = dailySchema.parse(req.body);
-    const { sleep, ...values } = input;
+    const { sleep: _sleep, ...values } = input;
     const userId = res.locals.userId;
+    const sleep = normalizeSleep(
+      input.sleep,
+      userZone(store, userId),
+      input.date,
+    );
     db.transaction((tx) => {
       tx.insert(s.daily)
         .values({ ...values, userId, id: randomUUID() })
@@ -405,12 +413,10 @@ export function apiRoutes(store: Store, config: Config) {
       after.to > today ||
       (medication.endDate && after.to > medication.endDate)
     ) {
-      res
-        .status(400)
-        .json({
-          error:
-            "Before must end before medication started. After must be during the medication period and end no later than today.",
-        });
+      res.status(400).json({
+        error:
+          "Before must end before medication started. After must be during the medication period and end no later than today.",
+      });
       return;
     }
     res.json(
