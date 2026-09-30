@@ -193,6 +193,8 @@ type EpisodeDraft = {
   start: string;
   end: string;
   ongoing: boolean;
+  /** The episode version the draft was started from; a draft of an older version is discarded. */
+  base?: string;
 };
 const sameItems = (a: string[], b: string[]) =>
   a.length === b.length && a.every((v) => b.includes(v));
@@ -243,10 +245,13 @@ export function EpisodeFlow({
     start: episode ? localInput(episode.startedAt, zone) : localNow(zone),
     end: episode?.endedAt ? localInput(episode.endedAt, zone) : localNow(zone),
     ongoing: episode ? !episode.endedAt : !otherActive,
+    base: episode?.updatedAt,
   }));
-  const [draft, setDraft] = useState<EpisodeDraft>(
-    () => readDraft<EpisodeDraft>(key) ?? initial,
-  );
+  const [draft, setDraft] = useState<EpisodeDraft>(() => {
+    // Ignore a draft made before the episode last changed (for example, before it was ended).
+    const stored = readDraft<EpisodeDraft>(key);
+    return stored && stored.base === initial.base ? stored : initial;
+  });
   const [brief, setBrief] = useState(s.lowStimulation && !episode);
   const [custom, setCustom] = useState("");
   const [stepError, setStepError] = useState("");

@@ -76,6 +76,7 @@ export function Home({
       Date.parse(d.takenAt) > Date.now() - 2 * 86400000,
   );
   const draft = readDraft<{ start: string; step?: number }>("episode:new");
+  const draftStart = DateTime.fromISO(draft?.start ?? "", { zone });
   const checkInDraft = readDraft<{ date: string }>("checkin");
   const checkedIn = data.daily.find((d) => d.date === today);
   return (
@@ -103,13 +104,9 @@ export function Home({
           <div>
             <strong>You have an unsaved migraine entry</strong>
             <p className="muted small">
-              Started{" "}
-              {formatDate(
-                DateTime.fromISO(draft.start, { zone }).toISO()!,
-                data.settings,
-                true,
-              )}
-              . It hasn’t been saved yet.
+              {draftStart.isValid &&
+                `Started ${formatDate(draftStart.toISO()!, data.settings, true)}. `}
+              It hasn’t been saved yet.
             </p>
           </div>
           <div className="button-row">

@@ -182,6 +182,11 @@ test("phone journal critical path, export, accessibility, PWA installability and
   await expect(
     page.getByRole("button", { name: "Migraine starting now" }),
   ).toBeVisible();
+  // A malformed link keeps the app usable rather than blanking it.
+  await page.goto("/#%E0");
+  await expect(
+    page.getByRole("button", { name: "Migraine starting now" }),
+  ).toBeVisible();
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
   const accessibility = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])

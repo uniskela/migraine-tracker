@@ -84,6 +84,7 @@ function usePreferences(data: Data, refresh: () => Promise<void>) {
   const [error, setError] = useState("");
   const latest = useRef(data.settings);
   const pending = useRef(0);
+  const failed = useRef(false);
   const queue = useRef(Promise.resolve());
   useEffect(() => {
     // Follow changes made elsewhere, such as the Low stimulation button, unless a save is in flight.
@@ -102,13 +103,17 @@ function usePreferences(data: Data, refresh: () => Promise<void>) {
       .then(() => api("/settings", "PUT", next))
       .then(
         () => undefined,
-        (e: unknown) =>
-          setError(e instanceof Error ? e.message : "Couldn’t save."),
+        (e: unknown) => {
+          failed.current = true;
+          setError(e instanceof Error ? e.message : "Couldn’t save.");
+        },
       )
       .then(async () => {
         if (--pending.current) return;
+        // Reloading restores the server's values when a save in this batch failed.
         await refresh().catch(() => undefined);
-        setStatus("Saved");
+        setStatus(failed.current ? "" : "Saved");
+        failed.current = false;
       });
   };
   return { value, update, status, error };

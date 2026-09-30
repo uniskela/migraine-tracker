@@ -5,7 +5,14 @@ export function parseRoute(hash: string): Route {
   const [name = "", ...params] = hash
     .replace(/^#\/?/, "")
     .split("/")
-    .map((part) => decodeURIComponent(part));
+    .map((part) => {
+      // A malformed escape in a typed or truncated link keeps its raw text rather than breaking the app.
+      try {
+        return decodeURIComponent(part);
+      } catch {
+        return part;
+      }
+    });
   return { name: name || "home", params };
 }
 /** Run once a just-closed dialog has removed its history entry, so navigation does not land on that entry. */
