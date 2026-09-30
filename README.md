@@ -16,10 +16,11 @@ Screenshots use synthetic demonstration records, never real health data.
 
 ## Features
 
-- One-tap active migraine; quick entry, editing, ending and deletion.
+- One-tap active migraine; a step-by-step entry form that can be saved from any page, with unsaved entries kept for the session.
 - Symptoms, pain location/character, associated factors, sleep and functional impact.
+- Sleep recorded as approximate bed and wake times; hours slept are calculated automatically, or estimated when a time is unknown.
 - Acute/preventive medication schedules, dose records, relief reviews and generic side effects.
-- History search/filtering and monthly severity calendar.
+- Episode detail pages, history search/filtering, monthly severity calendar and a list of daily check-ins.
 - Timezone-aware trends, previous-period metrics and preventive before/after comparisons.
 - Daily check-ins for context on non-migraine days; optional weight journal.
 - Downloadable doctor PDF, CSV, JSON and full ZIP exports; portable JSON import CLI.

@@ -6,10 +6,20 @@ import {
   change,
   comparison,
   episodeDays,
+  inPeriod,
   summary,
   type Summary,
 } from "../shared/stats";
-import { Empty, ErrorMessage, Field, Modal, PageTitle, useAction } from "./ui";
+import { formatHours } from "../shared/sleep";
+import {
+  Empty,
+  ErrorMessage,
+  Field,
+  Modal,
+  PageTitle,
+  SubNav,
+  useAction,
+} from "./ui";
 type Frequency = { name: string; count: number; percentage: number };
 type TrendResult = {
   current: Summary;
@@ -38,34 +48,34 @@ export function Metrics({
   current: Summary;
   previous?: Summary;
 }) {
-  const metrics: { label: string; key: keyof Summary; suffix?: string }[] = [
-    { label: "Migraine days", key: "migraineDays" },
-    { label: "Episodes", key: "episodes" },
-    { label: "Average severity", key: "averageSeverity", suffix: "/10" },
-    { label: "Average duration", key: "averageDuration", suffix: "h" },
-    { label: "Migraine hours", key: "totalHours", suffix: "h" },
-    { label: "Significantly impacted days", key: "impactedDays" },
-    { label: "Acute medication days", key: "acuteDays" },
-    { label: "Acute doses", key: "acuteDoses" },
+  const metrics: { label: string; metric: keyof Summary; suffix?: string }[] = [
+    { label: "Migraine days", metric: "migraineDays" },
+    { label: "Migraines", metric: "episodes" },
+    { label: "Average severity", metric: "averageSeverity", suffix: "/10" },
+    { label: "Average length", metric: "averageDuration", suffix: "h" },
+    { label: "Total hours with migraine", metric: "totalHours", suffix: "h" },
+    { label: "High-impact days (3–5)", metric: "impactedDays" },
+    { label: "Days with acute medication", metric: "acuteDays" },
+    { label: "Acute doses", metric: "acuteDoses" },
   ];
   return (
     <div className="metrics-grid">
       {metrics.map((m) => {
-        const prev = previous?.[m.key],
-          val = current[m.key];
+        const prev = previous?.[m.metric],
+          val = current[m.metric];
         const delta =
           typeof val === "number" && typeof prev === "number"
             ? change(val, prev)
             : null;
         return (
-          <div className="metric card" key={m.key}>
+          <div className="metric card" key={m.metric}>
             <span>{m.label}</span>
             <strong>{number(val, m.suffix)}</strong>
             {previous && (
               <small>
                 {delta === null
                   ? `Previous: ${number(prev ?? null)}`
-                  : `${delta > 0 ? "+" : ""}${Math.round(delta)}% · previous ${number(prev ?? null)}`}
+                  : `${delta > 0 ? "+" : ""}${Math.round(delta)}% vs ${number(prev ?? null)} before`}
               </small>
             )}
           </div>
@@ -103,7 +113,7 @@ function Frequencies({
         ))
       )}
       <p className="small muted">
-        Percentage of recorded episodes. Multiple selections are possible.
+        Share of migraines in this period where each was recorded.
       </p>
     </section>
   );
@@ -209,11 +219,11 @@ function Comparison({ data }: { data: Data }) {
     afterTo: "After: to",
   };
   const rows = [
-    { label: "Migraine days / 30 days", key: "migraineDaysPer30" },
-    { label: "Average severity", key: "averageSeverity" },
-    { label: "Migraine hours / 30 days", key: "migraineHoursPer30" },
-    { label: "Impacted days / 30 days", key: "impactDaysPer30" },
-    { label: "Acute medication days / 30 days", key: "acuteDaysPer30" },
+    { label: "Migraine days per 30 days", metric: "migraineDaysPer30" },
+    { label: "Average severity", metric: "averageSeverity" },
+    { label: "Hours with migraine per 30 days", metric: "migraineHoursPer30" },
+    { label: "High-impact days per 30 days", metric: "impactDaysPer30" },
+    { label: "Acute medication days per 30 days", metric: "acuteDaysPer30" },
   ] as const;
   return (
     <section className="card">
@@ -303,10 +313,10 @@ function Comparison({ data }: { data: Data }) {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.key}>
+                <tr key={r.metric}>
                   <th>{r.label}</th>
-                  <td>{number(result.before[r.key])}</td>
-                  <td>{number(result.after[r.key])}</td>
+                  <td>{number(result.before[r.metric])}</td>
+                  <td>{number(result.after[r.metric])}</td>
                 </tr>
               ))}
             </tbody>
@@ -416,8 +426,74 @@ function DoctorReport({
     </Modal>
   );
 }
+/** Compare recorded sleep before migraines with sleep on check-in days without a migraine. */
+function SleepContext({
+  data,
+  period,
+}: {
+  data: Data;
+  period: { from: string; to: string };
+}) {
+  const zone = data.settings.timezone;
+  const migraineDays = new Set(
+    data.episodes.flatMap((e) => episodeDays(e, zone, period)),
+  );
+  const before = data.episodes.flatMap((e) =>
+    inPeriod(e, period, zone) && e.sleep?.hours != null ? [e.sleep.hours] : [],
+  );
+  const other = data.daily.flatMap((d) =>
+    d.date >= period.from &&
+    d.date <= period.to &&
+    !migraineDays.has(d.date) &&
+    d.sleep?.hours != null
+      ? [d.sleep.hours]
+      : [],
+  );
+  const average = (v: number[]) =>
+    v.length ? formatHours(v.reduce((a, b) => a + b, 0) / v.length) : "—";
+  return (
+    <section className="card">
+      <h2>Sleep</h2>
+      <div className="sleep-compare">
+        <div>
+          <span className="muted small">Before a migraine</span>
+          <strong>{average(before)}</strong>
+          <small className="muted">
+            {before.length} {before.length === 1 ? "night" : "nights"} recorded
+          </small>
+        </div>
+        <div>
+          <span className="muted small">Check-in days without one</span>
+          <strong>{average(other)}</strong>
+          <small className="muted">
+            {other.length} {other.length === 1 ? "night" : "nights"} recorded
+          </small>
+        </div>
+      </div>
+      <p className="small muted">
+        Averages of the hours you recorded. With only a few nights, differences
+        are likely to be chance.
+      </p>
+    </section>
+  );
+}
+type TrendSection = "overview" | "patterns" | "medication";
 /** Coordinate date-range summaries, association coverage and preventive medication comparisons. */
-export function Trends({ data }: { data: Data }) {
+export function Trends({
+  data,
+  section,
+  setSection,
+}: {
+  data: Data;
+  section: string;
+  setSection: (section: TrendSection) => void;
+}) {
+  const sections: { id: TrendSection; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "patterns", label: "Patterns" },
+    { id: "medication", label: "Medication" },
+  ];
+  const current = sections.find((s) => s.id === section)?.id ?? "overview";
   const today = DateTime.now().setZone(data.settings.timezone);
   const [range, setRange] = useState("30");
   const [period, setPeriod] = useState({
@@ -446,8 +522,8 @@ export function Trends({ data }: { data: Data }) {
     <>
       <PageTitle
         eyebrow="A little perspective"
-        title="Your patterns"
-        text="Understand your experience, one day at a time."
+        title="Trends"
+        text="What your records show over time."
         action={
           <button className="button secondary" onClick={() => setReport(true)}>
             <FileText size={18} />
@@ -455,121 +531,147 @@ export function Trends({ data }: { data: Data }) {
           </button>
         }
       />
-      <div className="range-row">
-        <div className="segmented">
-          {[
-            ["7", "7 days"],
-            ["30", "30 days"],
-            ["90", "90 days"],
-            ["6m", "6 months"],
-            ["12m", "12 months"],
-            ["custom", "Custom"],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              aria-pressed={range === value}
-              onClick={() => {
-                setRange(value);
-                if (value !== "custom")
-                  setPeriod({
-                    from: (value.endsWith("m")
-                      ? today
-                          .minus({ months: Number(value.slice(0, -1)) })
-                          .plus({ days: 1 })
-                      : today.minus({ days: Number(value) - 1 })
-                    ).toISODate()!,
-                    to: today.toISODate()!,
-                  });
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-      {range === "custom" && (
-        <div className="form-grid">
-          <Field label="From">
-            <input
-              type="date"
-              value={period.from}
-              onChange={(e) => setPeriod({ ...period, from: e.target.value })}
-            />
-          </Field>
-          <Field label="To">
-            <input
-              type="date"
-              max={today.toISODate()!}
-              value={period.to}
-              onChange={(e) => setPeriod({ ...period, to: e.target.value })}
-            />
-          </Field>
-        </div>
-      )}
-      <ErrorMessage error={error} />
-      {result ? (
+      <SubNav
+        label="Trends sections"
+        items={sections}
+        current={current}
+        onSelect={setSection}
+      />
+      {current !== "medication" && (
         <>
-          <Metrics current={result.current} previous={result.previous} />
-          <p className="small muted">
-            Compared with the preceding {result.current.periodDays} days.
-            Average duration includes only completed episodes wholly in this
-            period. Significant impact means a recorded score of 3–5.
-          </p>
-          <MigraineChart data={data} {...period} />
-          <div className="two-column">
-            <Frequencies title="Associated factors" values={result.factors} />
-            <Frequencies title="Reported symptoms" values={result.symptoms} />
+          <div className="range-row">
+            <div className="segmented" role="group" aria-label="Time period">
+              {[
+                ["7", "7 days"],
+                ["30", "30 days"],
+                ["90", "90 days"],
+                ["6m", "6 months"],
+                ["12m", "12 months"],
+                ["custom", "Custom"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  aria-pressed={range === value}
+                  onClick={() => {
+                    setRange(value);
+                    if (value !== "custom")
+                      setPeriod({
+                        from: (value.endsWith("m")
+                          ? today
+                              .minus({ months: Number(value.slice(0, -1)) })
+                              .plus({ days: 1 })
+                          : today.minus({ days: Number(value) - 1 })
+                        ).toISODate()!,
+                        to: today.toISODate()!,
+                      });
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
-          <section className="card">
-            <h2>Context from daily check-ins</h2>
-            <p className="muted">
-              {result.context.migraineDays} recorded migraine days ·{" "}
-              {result.context.nonMigraineDays} recorded non-migraine days.
-            </p>
-            {!result.context.sufficient ? (
-              <p>
-                Not enough recorded context to compare reliably. Add check-ins
-                on both migraine and migraine-free days. Comparisons appear
-                after at least 7 recorded days of each; this threshold does not
-                imply statistical significance.
-              </p>
-            ) : (
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Associated factor</th>
-                      <th>Migraine days</th>
-                      <th>Non-migraine days</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.context.factors.map((f) => (
-                      <tr key={f.name}>
-                        <th>{f.name}</th>
-                        <td>{number(f.migrainePercentage, "%")}</td>
-                        <td>{number(f.nonMigrainePercentage, "%")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <p className="small muted">
-              Only days with a check-in are compared. Association does not
-              establish causation.
-            </p>
-          </section>
+          {range === "custom" && (
+            <div className="form-grid">
+              <Field label="From">
+                <input
+                  type="date"
+                  value={period.from}
+                  onChange={(e) =>
+                    setPeriod({ ...period, from: e.target.value })
+                  }
+                />
+              </Field>
+              <Field label="To">
+                <input
+                  type="date"
+                  max={today.toISODate()!}
+                  value={period.to}
+                  onChange={(e) => setPeriod({ ...period, to: e.target.value })}
+                />
+              </Field>
+            </div>
+          )}
+          <ErrorMessage error={error} />
         </>
-      ) : (
-        !error && (
-          <Empty
-            title="Loading your patterns…"
-            text="Reading your private journal."
-          />
-        )
       )}
-      <Comparison data={data} />
+      {current === "overview" &&
+        (result ? (
+          <>
+            <Metrics current={result.current} previous={result.previous} />
+            <p className="small muted">
+              Compared with the {result.current.periodDays} days before. Average
+              length counts only migraines that started and ended in this
+              period.
+            </p>
+            <MigraineChart data={data} {...period} />
+          </>
+        ) : (
+          !error && (
+            <Empty
+              title="Loading your trends…"
+              text="Reading your private journal."
+            />
+          )
+        ))}
+      {current === "patterns" &&
+        (result ? (
+          <>
+            <div className="two-column">
+              <Frequencies title="What was going on" values={result.factors} />
+              <Frequencies title="Symptoms" values={result.symptoms} />
+            </div>
+            <SleepContext data={data} period={period} />
+            <section className="card">
+              <h2>Migraine days vs other days</h2>
+              <p className="muted">
+                From your daily check-ins: {result.context.migraineDays} on
+                migraine days and {result.context.nonMigraineDays} on other
+                days.
+              </p>
+              {!result.context.sufficient ? (
+                <p>
+                  A comparison appears once you have at least 7 check-ins of
+                  each kind in this period. Check in on days with and without a
+                  migraine.
+                </p>
+              ) : (
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>What was going on</th>
+                        <th>Migraine days</th>
+                        <th>Other days</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.context.factors.map((f) => (
+                        <tr key={f.name}>
+                          <th>{f.name}</th>
+                          <td>{number(f.migrainePercentage, "%")}</td>
+                          <td>{number(f.nonMigrainePercentage, "%")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <p className="small muted">
+                Something happening more often on migraine days doesn’t mean it
+                causes them.
+              </p>
+            </section>
+          </>
+        ) : (
+          !error && (
+            <Empty
+              title="Loading your trends…"
+              text="Reading your private journal."
+            />
+          )
+        ))}
+      {current === "medication" && <Comparison data={data} />}
       {report && (
         <DoctorReport data={data} {...period} close={() => setReport(false)} />
       )}

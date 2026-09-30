@@ -1,17 +1,30 @@
 import { useState } from "react";
 import {
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
-  List,
+  Plus,
   Search,
   SlidersHorizontal,
+  X,
 } from "lucide-react";
 import { DateTime } from "luxon";
-import type { Data } from "./api";
+import { api, type Data } from "./api";
 import type { Episode } from "../shared/validation";
 import { duration, episodeDays } from "../shared/stats";
-import { Empty, Field, formatDate, PageTitle } from "./ui";
+import { impacts } from "../shared/options";
+import { formatHours } from "../shared/sleep";
+import {
+  Empty,
+  ErrorMessage,
+  Field,
+  formatDate,
+  Modal,
+  PageTitle,
+  SubNav,
+  Submit,
+  useAction,
+  useConfirm,
+} from "./ui";
 /** Render a compact episode summary with severity, duration and recorded medication use. */
 export function EpisodeRow({
   episode: e,
@@ -59,14 +72,16 @@ export function EpisodeRow({
     </button>
   );
 }
-/** Render a local monthly calendar with labelled severity and selectable episode dates. */
+/** Render a local monthly calendar with labelled severity, check-in markers and selectable dates. */
 export function Calendar({
   episodes,
+  checkIns,
   zone,
   selected,
   onSelect,
 }: {
   episodes: Episode[];
+  checkIns: Set<string>;
   zone: string;
   selected: string;
   onSelect: (date: string) => void;
@@ -82,8 +97,8 @@ export function Calendar({
   const dayMap = new Map<string, (number | null)[]>();
   for (const episode of episodes)
     for (const d of episodeDays(episode, zone, {
-      from: month.toISODate()!,
-      to: month.endOf("month").toISODate()!,
+      from: start.toISODate()!,
+      to: days[days.length - 1].toISODate()!,
     }))
       dayMap.set(d, [...(dayMap.get(d) || []), episode.severity]);
   return (
@@ -128,16 +143,18 @@ export function Calendar({
                 : max < 7
                   ? "moderate"
                   : "severe";
+          const checked = checkIns.has(date);
           return (
             <button
               key={date}
               className={`calendar-day level-${level} ${day.month !== month.month ? "outside" : ""}`}
               aria-pressed={selected === date}
-              aria-label={`${day.toFormat("d MMMM yyyy")}: ${values ? (max === null ? "migraine, severity unrecorded" : `${level} migraine, ${max} out of 10`) : "no migraine recorded"}`}
+              aria-label={`${day.toFormat("d MMMM yyyy")}: ${values ? (max === null ? "migraine, severity unrecorded" : `${level} migraine, ${max} out of 10`) : "no migraine recorded"}${checked ? ", check-in recorded" : ""}`}
               onClick={() => onSelect(selected === date ? "" : date)}
             >
               <span>{day.day}</span>
               <small>{values ? (max === null ? "•" : max) : ""}</small>
+              {checked && <i className="checkin-mark" aria-hidden="true" />}
             </button>
           );
         })}
@@ -147,141 +164,100 @@ export function Calendar({
         <span>4–6 Moderate</span>
         <span>7–10 Severe</span>
         <span>• Unrated</span>
+        <span>
+          <i className="checkin-mark" aria-hidden="true" /> Check-in
+        </span>
       </div>
-      <p className="small muted">Blank days mean no migraine recorded.</p>
+      <p className="small muted">
+        A blank day means nothing was recorded, not that it was migraine-free.
+      </p>
     </section>
   );
 }
-/** Filter the stored episode timeline and calendar using the account’s timezone. */
-export function History({
+type Filters = {
+  from: string;
+  to: string;
+  severity: string;
+  medication: string;
+  factor: string;
+  impact: string;
+  hours: string;
+  preventive: string;
+};
+const noFilters: Filters = {
+  from: "",
+  to: "",
+  severity: "",
+  medication: "",
+  factor: "",
+  impact: "",
+  hours: "",
+  preventive: "",
+};
+/** Edit every history filter in one sheet; changes apply when the sheet is closed with Apply. */
+function FilterSheet({
   data,
-  edit,
+  value,
+  apply,
+  close,
 }: {
   data: Data;
-  edit: (e: Episode) => void;
+  value: Filters;
+  apply: (value: Filters) => void;
+  close: () => void;
 }) {
-  const [view, setView] = useState("list"),
-    [search, setSearch] = useState(""),
-    [from, setFrom] = useState(""),
-    [to, setTo] = useState(""),
-    [severity, setSeverity] = useState(""),
-    [medication, setMedication] = useState(""),
-    [factor, setFactor] = useState(""),
-    [impact, setImpact] = useState(""),
-    [hours, setHours] = useState(""),
-    [day, setDay] = useState(""),
-    [preventive, setPreventive] = useState("");
-  const filtered = data.episodes.filter((e) => {
-    const days = episodeDays(e, data.settings.timezone);
-    const activeMed = data.medications.find((m) => m.id === preventive);
-    const names = data.doses
-      .filter((d) => d.episodeId === e.id)
-      .map(
-        (d) =>
-          data.medications.find((m) => m.id === d.medicationId)?.name || "",
-      );
-    return (
-      (!from || days.some((d) => d >= from)) &&
-      (!to || days.some((d) => d <= to)) &&
-      (!day || days.includes(day)) &&
-      (!severity || (e.severity !== null && e.severity >= Number(severity))) &&
-      (!impact || (e.impact !== null && e.impact >= Number(impact))) &&
-      (!factor || e.factors.includes(factor)) &&
-      (!medication ||
-        data.doses.some(
-          (d) => d.episodeId === e.id && d.medicationId === medication,
-        )) &&
-      (!hours ||
-        (Date.parse(e.endedAt || new Date().toISOString()) -
-          Date.parse(e.startedAt)) /
-          3600000 >=
-          Number(hours)) &&
-      (!activeMed ||
-        (!!activeMed.startDate &&
-          days.some(
-            (d) =>
-              d >= activeMed.startDate! &&
-              (!activeMed.endDate || d <= activeMed.endDate),
-          ))) &&
-      [e.notes, ...e.symptoms, ...e.factors, ...names]
-        .join(" ")
-        .toLowerCase()
-        .includes(search.toLowerCase())
-    );
+  const [v, setV] = useState(value);
+  const field = (key: keyof Filters) => ({
+    value: v[key],
+    onChange: (e: { target: { value: string } }) =>
+      setV({ ...v, [key]: e.target.value }),
   });
   return (
-    <>
-      <PageTitle
-        eyebrow="Your journal"
-        title="History"
-        text="Your days, in your own words."
-        action={
-          <div className="segmented">
-            <button
-              aria-pressed={view === "list"}
-              onClick={() => {
-                setView("list");
-                setDay("");
-              }}
-            >
-              <List size={17} />
-              List
-            </button>
-            <button
-              aria-pressed={view === "calendar"}
-              onClick={() => setView("calendar")}
-            >
-              <CalendarDays size={17} />
-              Calendar
-            </button>
-          </div>
-        }
-      />
-      <div className="search-field">
-        <Search size={19} />
-        <input
-          aria-label="Search history"
-          placeholder="Search notes, symptoms or medications…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-      <details className="card filters">
-        <summary>
-          <SlidersHorizontal size={17} />
-          Filter entries
-        </summary>
+    <Modal title="Filter migraines" close={close}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          apply(v);
+          close();
+        }}
+      >
         <div className="form-grid">
           <Field label="From date">
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-            />
+            <input type="date" {...field("from")} />
           </Field>
           <Field label="To date">
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-            />
+            <input type="date" {...field("to")} />
           </Field>
-          <Field label="Minimum severity">
-            <select
-              value={severity}
-              onChange={(e) => setSeverity(e.target.value)}
-            >
+          <Field label="Severity at least">
+            <select {...field("severity")}>
               <option value="">Any</option>
-              {[1, 4, 7, 10].map((n) => (
-                <option key={n}>{n}</option>
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>
+                  {n}/10
+                </option>
               ))}
             </select>
           </Field>
+          <Field label="Impact at least">
+            <select {...field("impact")}>
+              <option value="">Any</option>
+              {impacts.slice(1).map((label, i) => (
+                <option key={label} value={i + 1}>
+                  {i + 1} · {label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Lasting at least (hours)">
+            <input
+              type="number"
+              min="0"
+              inputMode="decimal"
+              {...field("hours")}
+            />
+          </Field>
           <Field label="Medication taken">
-            <select
-              value={medication}
-              onChange={(e) => setMedication(e.target.value)}
-            >
+            <select {...field("medication")}>
               <option value="">Any</option>
               {data.medications.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -290,8 +266,8 @@ export function History({
               ))}
             </select>
           </Field>
-          <Field label="Associated factor">
-            <select value={factor} onChange={(e) => setFactor(e.target.value)}>
+          <Field label="What was going on">
+            <select {...field("factor")}>
               <option value="">Any</option>
               {[...new Set(data.episodes.flatMap((e) => e.factors))].map(
                 (f) => (
@@ -300,27 +276,8 @@ export function History({
               )}
             </select>
           </Field>
-          <Field label="Minimum impact">
-            <select value={impact} onChange={(e) => setImpact(e.target.value)}>
-              <option value="">Any</option>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <option key={n}>{n}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Minimum duration (hours)">
-            <input
-              type="number"
-              min="0"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-            />
-          </Field>
-          <Field label="During preventive medication">
-            <select
-              value={preventive}
-              onChange={(e) => setPreventive(e.target.value)}
-            >
+          <Field label="While taking preventive">
+            <select {...field("preventive")}>
               <option value="">Any</option>
               {data.medications
                 .filter((m) => m.category === "preventive")
@@ -332,55 +289,430 @@ export function History({
             </select>
           </Field>
         </div>
-        <button
-          className="text-button"
-          onClick={() => {
-            setFrom("");
-            setTo("");
-            setSeverity("");
-            setMedication("");
-            setFactor("");
-            setImpact("");
-            setHours("");
-            setPreventive("");
-            setSearch("");
-            setDay("");
-          }}
-        >
-          Clear all filters
+        <div className="button-row dialog-actions">
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => setV(noFilters)}
+          >
+            Clear all
+          </button>
+          <button type="submit" className="button primary">
+            Apply filters
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+/** Group episodes under month headings. */
+function byMonth(episodes: Episode[], zone: string) {
+  const groups = new Map<string, Episode[]>();
+  for (const e of episodes) {
+    const month = DateTime.fromISO(e.startedAt)
+      .setZone(zone)
+      .toFormat("MMMM yyyy");
+    groups.set(month, [...(groups.get(month) || []), e]);
+  }
+  return [...groups];
+}
+/** Searchable, filterable list of migraines, grouped by month and shown a page at a time. */
+function Migraines({
+  data,
+  open,
+  calendar,
+}: {
+  data: Data;
+  open: (e: Episode) => void;
+  calendar: boolean;
+}) {
+  const zone = data.settings.timezone;
+  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState(noFilters);
+  const [sheet, setSheet] = useState(false);
+  const [selectedDay, setDay] = useState("");
+  const day = calendar ? selectedDay : "";
+  const [shown, setShown] = useState(40);
+  const medName = (id: string) =>
+    data.medications.find((m) => m.id === id)?.name ?? "";
+  const labels: Record<keyof Filters, (v: string) => string> = {
+    from: (v) => `From ${formatDate(v, data.settings)}`,
+    to: (v) => `To ${formatDate(v, data.settings)}`,
+    severity: (v) => `Severity ${v}+`,
+    impact: (v) => `Impact ${v}+`,
+    hours: (v) => `${v}+ hours`,
+    medication: (v) => `Took ${medName(v)}`,
+    factor: (v) => v,
+    preventive: (v) => `While on ${medName(v)}`,
+  };
+  const active = (Object.keys(filters) as (keyof Filters)[]).filter(
+    (k) => filters[k],
+  );
+  const f = filters;
+  const filtered = data.episodes.filter((e) => {
+    const days = episodeDays(e, zone);
+    const preventive = data.medications.find((m) => m.id === f.preventive);
+    const names = data.doses
+      .filter((d) => d.episodeId === e.id)
+      .map((d) => medName(d.medicationId));
+    return (
+      (!f.from || days.some((d) => d >= f.from)) &&
+      (!f.to || days.some((d) => d <= f.to)) &&
+      (!day || days.includes(day)) &&
+      (!f.severity ||
+        (e.severity !== null && e.severity >= Number(f.severity))) &&
+      (!f.impact || (e.impact !== null && e.impact >= Number(f.impact))) &&
+      (!f.factor || e.factors.includes(f.factor)) &&
+      (!f.medication ||
+        data.doses.some(
+          (d) => d.episodeId === e.id && d.medicationId === f.medication,
+        )) &&
+      (!f.hours ||
+        (Date.parse(e.endedAt || new Date().toISOString()) -
+          Date.parse(e.startedAt)) /
+          3600000 >=
+          Number(f.hours)) &&
+      (!preventive ||
+        (!!preventive.startDate &&
+          days.some(
+            (d) =>
+              d >= preventive.startDate! &&
+              (!preventive.endDate || d <= preventive.endDate),
+          ))) &&
+      [e.notes, ...e.symptoms, ...e.factors, ...names]
+        .join(" ")
+        .toLowerCase()
+        .includes(search.toLowerCase())
+    );
+  });
+  return (
+    <>
+      <div className="search-row">
+        <div className="search-field">
+          <Search size={19} />
+          <input
+            aria-label="Search migraines"
+            placeholder="Search notes, symptoms or medication…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <button className="button secondary" onClick={() => setSheet(true)}>
+          <SlidersHorizontal size={17} />
+          Filters{active.length ? ` (${active.length})` : ""}
         </button>
-      </details>
-      {view === "calendar" && (
+      </div>
+      {active.length > 0 && (
+        <div className="active-filters" aria-label="Active filters">
+          {active.map((k) => (
+            <button
+              key={k}
+              className="filter-chip"
+              onClick={() => setFilters({ ...filters, [k]: "" })}
+            >
+              {labels[k](filters[k])}
+              <X size={14} aria-hidden="true" />
+              <span className="visually-hidden"> — remove filter</span>
+            </button>
+          ))}
+          <button className="text-button" onClick={() => setFilters(noFilters)}>
+            Clear all
+          </button>
+        </div>
+      )}
+      {calendar && (
         <Calendar
           episodes={data.episodes}
-          zone={data.settings.timezone}
+          checkIns={new Set(data.daily.map((d) => d.date))}
+          zone={zone}
           selected={day}
           onSelect={setDay}
         />
       )}
       <section className="card">
         <div className="card-title">
-          <h2>{day ? formatDate(day, data.settings) : "All entries"}</h2>
+          <h2>{day ? formatDate(day, data.settings) : "Migraines"}</h2>
           <span className="muted small">
-            {filtered.length} {filtered.length === 1 ? "episode" : "episodes"}
+            {filtered.length} {filtered.length === 1 ? "migraine" : "migraines"}
           </span>
         </div>
         {filtered.length ? (
-          filtered.map((e) => (
-            <EpisodeRow
-              key={e.id}
-              episode={e}
-              data={data}
-              open={() => edit(e)}
-            />
+          byMonth(filtered.slice(0, shown), zone).map(([month, episodes]) => (
+            <div key={month} className="month-group">
+              {!day && <h3 className="month-heading">{month}</h3>}
+              {episodes.map((e) => (
+                <EpisodeRow
+                  key={e.id}
+                  episode={e}
+                  data={data}
+                  open={() => open(e)}
+                />
+              ))}
+            </div>
           ))
         ) : (
           <Empty
-            title="Nothing recorded here yet"
-            text="Your entries will appear here. Try adjusting the filters if you expected to see more."
+            title={
+              data.episodes.length
+                ? "No migraines match"
+                : "Nothing recorded yet"
+            }
+            text={
+              data.episodes.length
+                ? "Try removing a filter or changing your search."
+                : "Migraines you log will appear here."
+            }
           />
         )}
+        {filtered.length > shown && (
+          <button
+            className="button secondary"
+            onClick={() => setShown(shown + 40)}
+          >
+            Show more
+          </button>
+        )}
       </section>
+      {sheet && (
+        <FilterSheet
+          data={data}
+          value={filters}
+          apply={setFilters}
+          close={() => setSheet(false)}
+        />
+      )}
+    </>
+  );
+}
+/** List daily check-ins, newest first, each opening its check-in to edit. */
+function CheckIns({
+  data,
+  open,
+}: {
+  data: Data;
+  open: (date?: string) => void;
+}) {
+  const days = [...data.daily].sort((a, b) => b.date.localeCompare(a.date));
+  return (
+    <section className="card">
+      <div className="card-title">
+        <h2>Daily check-ins</h2>
+        <button className="button secondary" onClick={() => open()}>
+          <Plus size={17} />
+          New check-in
+        </button>
+      </div>
+      {days.length ? (
+        days.map((d) => (
+          <button
+            key={d.date}
+            className="episode-row"
+            onClick={() => open(d.date)}
+          >
+            <div className="date-tile">
+              <span>{DateTime.fromISO(d.date).toFormat("MMM")}</span>
+              <strong>{DateTime.fromISO(d.date).day}</strong>
+            </div>
+            <div className="episode-description">
+              <strong>{formatDate(d.date, data.settings)}</strong>
+              <p>{d.factors.length ? d.factors.join(", ") : "Nothing noted"}</p>
+              <small>
+                {d.sleep?.hours != null
+                  ? `Slept about ${formatHours(d.sleep.hours)}`
+                  : "Sleep not recorded"}
+                {d.activities.length ? ` · ${d.activities.join(", ")}` : ""}
+              </small>
+            </div>
+            <ChevronRight size={17} />
+          </button>
+        ))
+      ) : (
+        <Empty
+          title="No check-ins yet"
+          text="A quick check-in on any day, with or without a migraine, helps put patterns in context."
+        />
+      )}
+    </section>
+  );
+}
+/** Provide optional weight entries and a unit-normalized chart without health interpretations. */
+function Weight({ data, saved }: { data: Data; saved: () => Promise<void> }) {
+  const action = useAction();
+  const confirm = useConfirm();
+  const [date, setDate] = useState(
+    DateTime.now().setZone(data.settings.timezone).toISODate()!,
+  );
+  const [value, setValue] = useState("");
+  const [units, setUnits] = useState(data.settings.units);
+  const points = [...data.weights].sort((a, b) => a.date.localeCompare(b.date));
+  const converted = points.map((p) =>
+    p.units === data.settings.units
+      ? p.value
+      : p.units === "lb"
+        ? p.value / 2.2046226218
+        : p.value * 2.2046226218,
+  );
+  const min = Math.min(...converted) - 1,
+    max = Math.max(...converted) + 1;
+  return (
+    <section className="card">
+      <h2>Weight journal</h2>
+      <p className="muted">A simple record, without targets or conclusions.</p>
+      <form
+        onSubmit={action.submit(async () => {
+          await api("/weights", "POST", { date, value: Number(value), units });
+          setValue("");
+          await saved();
+        })}
+      >
+        <div className="form-grid">
+          <Field label="Weight date">
+            <input
+              type="date"
+              required
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </Field>
+          <Field label="Weight">
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0.1"
+              max="2000"
+              step="any"
+              required
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+            />
+          </Field>
+          <Field label="Weight units">
+            <select
+              value={units}
+              onChange={(e) => setUnits(e.target.value as "kg" | "lb")}
+            >
+              <option>kg</option>
+              <option>lb</option>
+            </select>
+          </Field>
+        </div>
+        <Submit busy={action.busy}>Save weight</Submit>
+      </form>
+      {points.length > 0 && (
+        <>
+          <svg
+            viewBox="0 0 600 150"
+            className="weight-chart"
+            role="img"
+            aria-label={`Weight over time in ${data.settings.units}: ${points.map((p, i) => `${p.date}, ${converted[i].toFixed(1)}`).join("; ")}`}
+          >
+            <polyline
+              points={converted
+                .map(
+                  (v, i) =>
+                    `${30 + (i / Math.max(1, converted.length - 1)) * 540},${120 - ((v - min) / (max - min)) * 100}`,
+                )
+                .join(" ")}
+              className="chart-line"
+            />
+            {converted.map((v, i) => (
+              <circle
+                key={i}
+                cx={30 + (i / Math.max(1, converted.length - 1)) * 540}
+                cy={120 - ((v - min) / (max - min)) * 100}
+                r="4"
+                className="chart-bar"
+              />
+            ))}
+          </svg>
+          <div className="scale-labels">
+            <span>{formatDate(points[0].date, data.settings)}</span>
+            <span>
+              {formatDate(points[points.length - 1].date, data.settings)}
+            </span>
+          </div>
+          {[...points].reverse().map((p) => (
+            <div className="list-row" key={p.id}>
+              <span>
+                {formatDate(p.date, data.settings)} · {p.value} {p.units}
+              </span>
+              <button
+                className="text-button danger"
+                onClick={async () => {
+                  if (
+                    await confirm({
+                      title: "Delete this weight entry?",
+                      message: `${p.value} ${p.units} on ${formatDate(p.date, data.settings)}. This can’t be undone.`,
+                      confirmLabel: "Delete",
+                      danger: true,
+                    })
+                  )
+                    void action.run(async () => {
+                      await api(`/weights/${p.id}`, "DELETE");
+                      await saved();
+                    });
+                }}
+              >
+                Delete
+                <span className="visually-hidden">
+                  {" "}
+                  weight from {formatDate(p.date, data.settings)}
+                </span>
+              </button>
+            </div>
+          ))}
+        </>
+      )}
+      <ErrorMessage error={action.error} />
+    </section>
+  );
+}
+export type HistorySection = "migraines" | "calendar" | "checkins" | "weight";
+/** Browse recorded migraines, the calendar, daily check-ins and the optional weight journal. */
+export function History({
+  data,
+  section,
+  setSection,
+  open,
+  openCheckIn,
+  saved,
+}: {
+  data: Data;
+  section: HistorySection;
+  setSection: (section: HistorySection) => void;
+  open: (e: Episode) => void;
+  openCheckIn: (date?: string) => void;
+  saved: () => Promise<void>;
+}) {
+  const sections: { id: HistorySection; label: string }[] = [
+    { id: "migraines", label: "Migraines" },
+    { id: "calendar", label: "Calendar" },
+    { id: "checkins", label: "Check-ins" },
+    ...(data.settings.weightEnabled
+      ? [{ id: "weight" as const, label: "Weight" }]
+      : []),
+  ];
+  const current = sections.some((s) => s.id === section)
+    ? section
+    : "migraines";
+  return (
+    <>
+      <PageTitle
+        eyebrow="Your journal"
+        title="History"
+        text="Everything you’ve recorded, in one place."
+      />
+      <SubNav
+        label="History sections"
+        items={sections}
+        current={current}
+        onSelect={setSection}
+      />
+      {(current === "migraines" || current === "calendar") && (
+        <Migraines data={data} open={open} calendar={current === "calendar"} />
+      )}
+      {current === "checkins" && <CheckIns data={data} open={openCheckIn} />}
+      {current === "weight" && <Weight data={data} saved={saved} />}
     </>
   );
 }
