@@ -30,10 +30,16 @@ test("phone journal critical path, export, accessibility, PWA installability and
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
   }
   await expect(
-    page.getByRole("button", { name: "Log Migraine", exact: true }),
+    page.getByRole("button", { name: "Migraine starting now" }),
   ).toBeVisible();
   const nav = page.getByRole("navigation", { name: "Mobile navigation" });
-  await nav.getByRole("button", { name: "Settings", exact: true }).click();
+  const settings = page.getByRole("button", { name: "Settings", exact: true });
+  const next = page.getByRole("button", { name: "Next", exact: true });
+  await settings.click();
+  await page
+    .getByRole("navigation", { name: "Settings sections" })
+    .getByRole("button", { name: "Account" })
+    .click();
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.getByLabel("Email or username").fill("phone-owner");
   await page
@@ -51,29 +57,81 @@ test("phone journal critical path, export, accessibility, PWA installability and
   await expect(
     page.getByText("Migraine active", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Update", exact: true }).click();
+  // Details are added one page at a time; the back gesture returns to the previous step.
+  await page.getByRole("button", { name: "Add details", exact: true }).click();
+  await expect(page.getByText("Step 1 of 6")).toBeVisible();
   await page.getByRole("button", { name: "Severity 6", exact: true }).click();
+  await next.click();
+  await expect(page.getByText("Step 2 of 6")).toBeVisible();
   await page.getByRole("button", { name: "Nausea", exact: true }).click();
   await page
     .getByRole("button", { name: "Light sensitivity", exact: true })
     .click();
-  await page.getByText("Impact on your day", { exact: true }).click();
-  await page.getByLabel("How much did this affect your day?").selectOption("3");
+  await next.click();
+  await page.goBack();
+  await expect(page.getByText("Step 2 of 6")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Nausea", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await next.click();
+  await page
+    .getByRole("button", { name: "3 · Stopped normal activities" })
+    .click();
+  await next.click();
+  // Enter in a text field adds the custom entry instead of saving or moving on.
+  await page.getByLabel("Add your own").fill("Long drive");
+  await page.getByLabel("Add your own").press("Enter");
+  await expect(page.getByText("Step 4 of 6")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Long drive", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await next.click();
+  // Hours slept are calculated from clock times across midnight.
+  await page.getByLabel("Went to bed around").fill("23:30");
+  await page.getByLabel("Woke up around").fill("07:00");
+  await expect(page.getByText("That’s about 7h 30m of sleep.")).toBeVisible();
+  await expect(page.getByLabel("Or estimate hours slept")).toHaveCount(0);
+  await next.click();
+  await expect(
+    page.getByText("11:30 PM to 7:00 AM · about 7h 30m"),
+  ).toBeVisible();
+  const accessibilityInFlow = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+    .analyze();
+  expect(accessibilityInFlow.violations).toEqual([]);
   await page.getByRole("button", { name: "Save migraine" }).click();
-  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(
+    page.getByText("Migraine active", { exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Take medication" }).click();
   await page.getByLabel("Dose taken").fill("1");
   await page.getByRole("button", { name: "Save dose" }).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
-  await page.getByRole("button", { name: "End Migraine" }).click();
+  await page.getByRole("button", { name: "End migraine" }).click();
   await expect(
     page.getByText("Migraine active", { exact: true }),
   ).not.toBeVisible();
+  // A daily check-in can be saved from any step.
+  await page.getByRole("button", { name: "Check in", exact: true }).click();
+  await next.click();
+  await page.getByLabel("Went to bed around").fill("22:00");
+  await page.getByLabel("Woke up around").fill("06:00");
+  await page.getByRole("button", { name: "Save now" }).click();
+  await expect(page.getByText("You’ve checked in today")).toBeVisible();
   await nav.getByRole("button", { name: "History", exact: true }).click();
   await expect(
     page.getByText("Test acute medication · High impact"),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Calendar", exact: true }).click();
+  await page.getByText("Test acute medication · High impact").click();
+  await expect(page.getByText("Long drive")).toBeVisible();
+  await expect(
+    page.getByText("11:30 PM to 7:00 AM · about 7h 30m"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "History sections" })
+    .getByRole("button", { name: "Calendar", exact: true })
+    .click();
   await expect(page.locator(".calendar-day.level-moderate")).toHaveCount(1);
   await nav.getByRole("button", { name: "Trends", exact: true }).click();
   await expect(
@@ -93,9 +151,11 @@ test("phone journal critical path, export, accessibility, PWA installability and
   await page.getByRole("button", { name: "PDF", exact: true }).click();
   expect((await downloaded).suggestedFilename()).toBe("migraine-report.pdf");
   await page.getByRole("button", { name: "Close", exact: true }).click();
-  await nav.getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByLabel("Theme", { exact: true }).selectOption("dark");
-  // External preference updates must reach the form without losing the unsaved theme.
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  // Preferences save immediately and stay in step with the Low stimulation button.
+  await settings.click();
+  await page.getByRole("button", { name: "Dark", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   const comfort = page.getByRole("button", {
     name: "Low stimulation",
     exact: true,
@@ -105,23 +165,28 @@ test("phone journal critical path, export, accessibility, PWA installability and
   });
   await comfort.click();
   await expect(switchControl).toBeChecked();
-  await expect(page.getByLabel("Theme", { exact: true })).toHaveValue("dark");
-  await page.getByRole("button", { name: "Save preferences" }).click();
-  await expect(comfort).toHaveAttribute("aria-pressed", "true");
   await page.reload();
   await expect(switchControl).toBeChecked();
-  await expect(page.getByLabel("Theme", { exact: true })).toHaveValue("dark");
-  await comfort.click();
-  await expect(switchControl).not.toBeChecked();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(
+    page.getByRole("button", { name: "Dark", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await switchControl.click();
+  await expect(comfort).toHaveAttribute("aria-pressed", "false");
   await nav.getByRole("button", { name: "Home", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Low stimulation", exact: true })
-    .click();
+  await comfort.click();
   await expect(page.locator("html")).toHaveAttribute("data-stimulation", "low");
-  await page.getByRole("button", { name: "Log Migraine", exact: true }).click();
-  expect(await page.locator("dialog details[open]").count()).toBe(0);
+  // Low-stimulation mode shortens a new entry to the essentials and a review.
+  await nav.getByRole("button", { name: /^Log/ }).click();
+  await expect(page.getByText("Step 1 of 2")).toBeVisible();
   await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Migraine starting now" }),
+  ).toBeVisible();
+  // A malformed link keeps the app usable rather than blanking it.
+  await page.goto("/#%E0");
+  await expect(
+    page.getByRole("button", { name: "Migraine starting now" }),
+  ).toBeVisible();
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
   const accessibility = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
@@ -174,7 +239,7 @@ test("phone journal critical path, export, accessibility, PWA installability and
   await context.setOffline(false);
   await page.getByRole("link", { name: "Try reconnecting" }).click();
   await expect(
-    page.getByRole("button", { name: "Log Migraine", exact: true }),
+    page.getByRole("button", { name: "Migraine starting now" }),
   ).toBeVisible();
   expect(errors).toEqual([]);
 });

@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { openDatabase, type Store } from "./database.js";
 import * as s from "./schema.js";
 import { saveEpisode } from "./repository.js";
+import { normalizeSleep } from "../shared/sleep.js";
 import {
   dailySchema,
   doseSchema,
@@ -94,7 +95,8 @@ export function importData(store: Store, raw: unknown) {
         .values({ ...w, userId: user.id })
         .run();
     for (const row of data.daily) {
-      const { sleep, ...day } = row;
+      const { sleep: _sleep, ...day } = row;
+      const sleep = normalizeSleep(row.sleep, data.settings.timezone, row.date);
       tx.insert(s.daily)
         .values({ ...day, userId: user.id })
         .run();

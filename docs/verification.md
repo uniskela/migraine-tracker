@@ -32,7 +32,7 @@ Verification date: 29 September 2026. All fixtures are synthetic. No actual heal
 
 - [Desktop](evidence/desktop.png)
 - [Phone](evidence/mobile.png)
-- [Low-stimulation entry](evidence/mobile-entry.png)
+- [Step-by-step migraine entry](evidence/mobile-entry.png)
 - [Dark low-stimulation mode](evidence/mobile-dark.png)
 - [Synthetic doctor report](evidence/doctor-report.pdf)
 

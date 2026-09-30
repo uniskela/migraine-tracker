@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Activity, ArrowRight, Leaf, LockKeyhole } from "lucide-react";
 import { api, setCsrf } from "./api";
 import { ErrorMessage, Field, Submit, useAction } from "./ui";
+import { deviceTimezone, TimezoneField, timezones } from "./Settings";
 export type AuthStatus = {
   setupRequired: boolean;
   localEnabled: boolean;
@@ -20,7 +21,11 @@ export function Login({
   const [username, setUsername] = useState(""),
     [password, setPassword] = useState(""),
     [secret, setSecret] = useState(""),
-    [zone, setZone] = useState(status.defaultTimezone),
+    [zone, setZone] = useState(() =>
+      timezones.includes(deviceTimezone())
+        ? deviceTimezone()
+        : status.defaultTimezone,
+    ),
     [units, setUnits] = useState("kg");
   const action = useAction();
   return (
@@ -141,33 +146,21 @@ export function Login({
             </Field>
             {status.setupRequired && (
               <>
-                <div className="form-grid">
-                  <Field label="Timezone">
-                    <input
-                      required
-                      value={zone}
-                      onChange={(e) => setZone(e.target.value)}
-                    />
-                  </Field>
-                  <Field label="Preferred units">
-                    <select
-                      value={units}
-                      onChange={(e) => setUnits(e.target.value)}
-                    >
-                      <option>kg</option>
-                      <option>lb</option>
-                    </select>
-                  </Field>
-                </div>
-                <details>
-                  <summary>Optional setup</summary>
-                  <p className="small muted">
-                    After creating your account, add preventive medications in
-                    Medications. Optional Authentik single sign-on is configured
-                    in your server environment; see docs/authentik.md. Local
-                    login remains available unless explicitly disabled.
-                  </p>
-                </details>
+                <TimezoneField value={zone} onChange={setZone} />
+                <Field label="Preferred weight units">
+                  <select
+                    value={units}
+                    onChange={(e) => setUnits(e.target.value)}
+                  >
+                    <option>kg</option>
+                    <option>lb</option>
+                  </select>
+                </Field>
+                <p className="small muted">
+                  You can add medications and change preferences after creating
+                  your account. Single sign-on is optional and set up on your
+                  server (see docs/authentik.md).
+                </p>
               </>
             )}
             <ErrorMessage error={action.error} />

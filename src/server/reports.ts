@@ -12,6 +12,22 @@ import {
   type Period,
 } from "../shared/stats.js";
 import type { AccountData } from "./repository.js";
+import { formatHours, sleepQualities } from "../shared/sleep.js";
+/** Describe recorded sleep in one line, or null when nothing was recorded. */
+export function describeSleep(sleep: AccountData["episodes"][number]["sleep"]) {
+  if (!sleep) return null;
+  return [
+    sleep.bedtime && sleep.wakeTime
+      ? `${sleep.bedtime} to ${sleep.wakeTime}`
+      : null,
+    sleep.hours !== null ? `about ${formatHours(sleep.hours)}` : null,
+    sleep.quality ? `quality ${sleepQualities[sleep.quality - 1]}` : null,
+    sleep.wokeDuringNight ? "woke during the night" : null,
+    sleep.unusual ? "unusual sleep" : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
 /** Encode quoted UTF-8 CSV cells and neutralize spreadsheet formula prefixes. */
 export function csv(rows: unknown[][]) {
   return (
@@ -46,6 +62,9 @@ export function episodeCsv(data: AccountData, period?: Period) {
       "Disruptions",
       "Activities",
       "Sleep hours",
+      "Bedtime",
+      "Wake time",
+      "Sleep quality",
       "Notes",
       "Medications",
     ],
@@ -65,6 +84,9 @@ export function episodeCsv(data: AccountData, period?: Period) {
         e.disruptions.join("; "),
         e.activities.join("; "),
         e.sleep?.hours,
+        e.sleep?.bedtime,
+        e.sleep?.wakeTime,
+        e.sleep?.quality,
         e.notes,
         data.doses
           .filter((d) => d.episodeId === e.id)
@@ -214,6 +236,14 @@ export function pdfReport(
     `Significantly impacted days (impact 3-5): ${s.impactedDays}   Average impact: ${number(s.averageImpact)} / 5`,
   );
   line(`Acute medication days: ${s.acuteDays}   Doses: ${s.acuteDoses}`);
+  const slept = report.episodes.flatMap((e) =>
+    e.sleep?.hours != null ? [e.sleep.hours] : [],
+  );
+  line(
+    slept.length
+      ? `Sleep before episodes: average ${formatHours(slept.reduce((a, b) => a + b, 0) / slept.length)} (${slept.length} recorded)`
+      : "Sleep before episodes: not recorded",
+  );
   line(
     "Unrecorded days are unknown. Duration is clipped to the period; an ongoing episode is counted through report generation.",
   );
@@ -337,6 +367,8 @@ export function pdfReport(
     if (e.symptoms.length) line(`Symptoms: ${e.symptoms.join(", ")}`);
     if (e.factors.length) line(`Associated factors: ${e.factors.join(", ")}`);
     if (e.disruptions.length) line(`Disruptions: ${e.disruptions.join(", ")}`);
+    const sleep = describeSleep(e.sleep);
+    if (sleep) line(`Sleep before: ${sleep}`);
     if (e.notes) line(`Notes: ${e.notes}`);
     for (const d of report.doses.filter((d) => d.episodeId === e.id))
       line(

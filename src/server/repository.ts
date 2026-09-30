@@ -3,6 +3,17 @@ import { and, eq } from "drizzle-orm";
 import type { Store } from "./database.js";
 import * as s from "./schema.js";
 import type { Episode, EpisodeInput } from "../shared/validation.js";
+import { normalizeSleep, wakeDateBefore } from "../shared/sleep.js";
+/** Read an account's configured timezone for interpreting local clock times. */
+export function userZone(store: Store, userId: string) {
+  return (
+    store.db
+      .select()
+      .from(s.settings)
+      .where(eq(s.settings.userId, userId))
+      .get()?.value.timezone ?? "UTC"
+  );
+}
 /** Load one account’s episodes with their symptoms, factors, impact and sleep records. */
 export function listEpisodes(store: Store, userId: string): Episode[] {
   const rows = store.db
@@ -89,7 +100,18 @@ export function saveEpisode(
   input: EpisodeInput,
   id: string = randomUUID(),
 ) {
-  const { symptoms, factors, impact, disruptions, sleep, ...values } = input;
+  const {
+    symptoms,
+    factors,
+    impact,
+    disruptions,
+    sleep: _sleep,
+    ...values
+  } = input;
+  const zone = userZone(store, userId);
+  const sleep = normalizeSleep(input.sleep, zone, (wake) =>
+    wakeDateBefore(input.startedAt, wake, zone),
+  );
   const now = new Date().toISOString();
   store.db.transaction((tx) => {
     const existing = tx
