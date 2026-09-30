@@ -1,7 +1,7 @@
 name: migraine-tracker
 x-runtime: &runtime
   # Keep app and backup on the same release. Override only for local builds/testing.
-  image: ${MIGRAINE_IMAGE:-ghcr.io/uniskela/migraine-tracker:1.0.0} # x-release-please-version
+  image: ${MIGRAINE_IMAGE:-ghcr.io/uniskela/migraine-tracker:1.1.0} # x-release-please-version
   volumes:
     - app-data:/app-data
   init: true
